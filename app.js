@@ -1511,7 +1511,18 @@
     var grid = $("#bCat");
     if (grid) {
       var hit = grid.querySelector('[data-c="' + e.cat + '"]');
-      if (hit) { grid.querySelectorAll(".catpick").forEach(function (b) { b.classList.remove("on"); }); hit.classList.add("on"); }
+      if (!hit) {
+        /* the grid only shows six areas, and the event may belong to one of the others */
+        var c = catOf(e.cat);
+        hit = document.createElement("button");
+        hit.type = "button";
+        hit.className = "catpick";
+        hit.dataset.c = e.cat;
+        hit.innerHTML = '<i style="background:' + c.color + '"></i>' + esc(c.label);
+        grid.appendChild(hit);
+      }
+      grid.querySelectorAll(".catpick").forEach(function (b) { b.classList.remove("on"); });
+      hit.classList.add("on");
     }
     if (note) note.textContent = "Billed against " + e.title + " on " + dLabel(e.date) +
       ". The " + e.rsvps.length + " brothers already going get it first, and it shows on the event page next to the check-in.";
