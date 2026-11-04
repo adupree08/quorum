@@ -2,7 +2,21 @@
 (function () {
   "use strict";
 
-  var TODAY = new Date("2026-10-18T12:00:00");
+  /* The seed re-anchors itself onto today (see reanchor in data.js), so the
+     clock here is the real one and past/upcoming is never stale. */
+  var TODAY = (function () { var d = new Date(); d.setHours(12, 0, 0, 0); return d; })();
+  function isoToday() {
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return TODAY.getFullYear() + "-" + p(TODAY.getMonth() + 1) + "-" + p(TODAY.getDate());
+  }
+  function when(e) {
+    /* an event is over once its start time has passed, not at midnight */
+    var d = new Date(e.date + "T12:00:00");
+    var t = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(e.time || "");
+    if (t) { var h = Number(t[1]) % 12 + (/pm/i.test(t[3]) ? 12 : 0); d.setHours(h, Number(t[2]), 0, 0); }
+    return d;
+  }
+  function isPast(e) { return when(e) < new Date(); }
   var db = window.QUORUM_SEED();
   // Who you are signed in as. Chosen on the launcher, persisted per device,
   // so a laptop can be the Polemarch while a phone is a plain Brother.
@@ -21,7 +35,7 @@
   var ROLE_MEMBER = { president: "m1", vicepresident: "m2", treasurer: "m3", secretary: "m5", strategus: "m9", chair: "m14", member: ME };
   var state = {
     role: "president", view: "home", tab: "home", search: "", filter: "all",
-    selected: {}, channel: "c1", appChannel: "c1", focusSearch: false,
+    selected: {}, channel: "c1", appChannel: null, focusSearch: false,
     checkout: { method: "ach", qty: 1 }, profileTab: "profile", moreView: null, ctx: null, komId: null, reqKind: "chapter", sort: "name", sortDir: 1, attEvent: null, evId: null, budgetEdit: false, goalEdit: null, calYM: "2026-10"
   };
 
@@ -46,8 +60,7 @@
   function pendings() { return db.members.filter(function (m) { return m.status === "pending"; }); }
   function myName() { var m = member(ME); return m ? full(m) : "A brother"; }
   function byDate(a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }
-  function upcoming() { return db.events.filter(function (e) { return !e.past; }).sort(byDate); }
-  function pastEvents() { return db.events.filter(function (e) { return e.past; }).sort(byDate).reverse(); }
+  function upcoming() { return db.events.filter(function (e) { return !isPast(e); }).sort(byDate); }
   function openBills(mid) {
     return db.bills.filter(function (b) { return paidBy(mid, b.id) < b.amount; }).sort(function (x, y) {
       return x.due < y.due ? -1 : x.due > y.due ? 1 : 0;
@@ -92,7 +105,7 @@
   }
   function feesPaid() { return db.payments.reduce(function (s, p) { return s + (p.method === "ach" ? achFee(p.amount) : p.method === "card" ? cardFee(p.amount) : 0); }, 0); }
 
-  function pastEvents() { return db.events.filter(function (e) { return e.past; }); }
+  function pastEvents() { return db.events.filter(isPast).sort(byDate).reverse(); }
   function mandatoryPast() { return pastEvents().filter(function (e) { return e.mandatory; }); }
   function attRate(mid) {
     var mp = mandatoryPast(); if (!mp.length) return 1;
@@ -246,7 +259,7 @@
     var att = Math.round(chapterAttRate() * 100), canMoney = can("dues");
 
     var q = '<button class="qcard' + (pend.length ? " warn" : " ok") + '" data-action="view" data-view="members" data-filter="pending">' +
-      '<div class="qt">Waiting on approval</div><div class="qv">' + pend.length + '</div><div class="qd">' + (pend.length ? "Longest waiting 9 days" : "All clear") + "</div></button>" +
+      '<div class="qt">Waiting on approval</div><div class="qv">' + pend.length + '</div><div class="qd">' + (pend.length ? "Longest waiting " + Math.max.apply(null, pend.map(function (m) { return parseInt(m.requested, 10) || 0; })) + " days" : "All clear") + "</div></button>" +
       (canMoney ?
         '<button class="qcard' + (late.length ? " alert" : " ok") + '" data-action="view" data-view="dues">' +
         '<div class="qt">Not financial</div><div class="qv">' + late.length + '</div><div class="qd">' + (late.length ? "brothers behind on dues" : "every brother is current") + "</div></button>" : "") +
@@ -315,7 +328,7 @@
     }).join("") + "</div>";
 
     return '<div class="dhead"><div><h1>Good evening, ' + esc(meNow.first) + "</h1>" +
-      '<p class="sub">Sunday, October 18 &middot; ' + actives().length + " active brothers &middot; " + officers().length +
+      '<p class="sub">' + TODAY.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) + ' &middot; ' + actives().length + " active brothers &middot; " + officers().length +
       " officers &middot; " + db.committees.length + " standing committees &middot; chartered " + db.chapter.founded + "</p></div></div>" +
       qa + '<div class="queue">' + q + "</div>" +
       '<div class="two3"><div class="sec"><h2>Membership queue</h2><div class="card"><div class="card-b flush"><div class="tw"><table>' +
@@ -518,7 +531,7 @@
             '<div class="rb-x"><div class="rb-t">' + esc(full(m)) + '</div><div class="rb-m">' + esc(m.roles[0]) +
             " &middot; " + Math.round(attRate(m.id) * 100) + "% overall</div></div>" +
             '<span class="chip ' + chipClass + '">' + label.split(" ")[0] + "</span>" +
-            (e.past ? '<button class="btn ghost sm" data-action="toggle-checkin" data-id="' + e.id + '" data-m="' + m.id + '">' +
+            (isPast(e) ? '<button class="btn ghost sm" data-action="toggle-checkin" data-id="' + e.id + '" data-m="' + m.id + '">' +
               (key === "present" ? "Undo" : "Mark present") + "</button>" : "") +
             '<span class="rb-go">&rsaquo;</span></div>';
         }).join("") : '<div class="empty">Nobody.</div>') + "</div></div></div>";
@@ -747,17 +760,17 @@
         '<span class="chip ' + (e.visibility === "public" ? "brand" : "neutral") + '">' + (e.visibility === "public" ? "Public link" : "Chapter only") + "</span>" +
         (e.hours ? '<span class="chip neutral">' + e.hours + " service hrs</span>" : "") + "</div></div></div>" +
         '<div class="card-b"><div style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:12px">' +
-        '<div><div style="font-size:11px;color:var(--muted)">' + (e.past ? "Attended" : "Going") + '</div><div class="num" style="font-size:18px;font-weight:700">' + (e.past ? e.checkedIn.length : e.rsvps.length) + "</div></div>" +
+        '<div><div style="font-size:11px;color:var(--muted)">' + (isPast(e) ? "Attended" : "Going") + '</div><div class="num" style="font-size:18px;font-weight:700">' + (isPast(e) ? e.checkedIn.length : e.rsvps.length) + "</div></div>" +
         (e.price ? '<div><div style="font-size:11px;color:var(--muted)">Tickets</div><div class="num" style="font-size:18px;font-weight:700">' + tix + "</div></div>" +
           '<div><div style="font-size:11px;color:var(--muted)">Collected</div><div class="num" style="font-size:18px;font-weight:700;color:var(--paid)">' + money0(rev) + "</div></div>" +
           '<div><div style="font-size:11px;color:var(--muted)">Price</div><div class="num" style="font-size:18px;font-weight:700">' + money0(e.price) + "</div></div>" : "") +
-        (e.past ? '<div><div style="font-size:11px;color:var(--muted)">Service hours credited</div><div class="num" style="font-size:18px;font-weight:700">' + (e.checkedIn.length * (e.hours || 0)) + "</div></div>" : "") +
+        (isPast(e) ? '<div><div style="font-size:11px;color:var(--muted)">Service hours credited</div><div class="num" style="font-size:18px;font-weight:700">' + (e.checkedIn.length * (e.hours || 0)) + "</div></div>" : "") +
         '</div><div style="display:flex;gap:6px;flex-wrap:wrap">' +
         '<button class="btn sm" data-action="open-event" data-id="' + e.id + '">Open event</button>' +
         '<button class="btn sm ghost" data-action="share-event" data-id="' + e.id + '">' + (e.price ? "Ticket link &amp; QR" : "Check-in QR") + "</button>" +
         '<button class="btn sm ghost" data-action="checkin" data-id="' + e.id + '">Check-in roster</button>' +
         '<button class="btn sm ghost" data-action="event-update" data-id="' + e.id + '">Notify attendees</button>' +
-        (e.past ? '<button class="btn sm ghost" data-action="log-service" data-id="' + e.id + '">Log service hours</button>' : "") +
+        (isPast(e) ? '<button class="btn sm ghost" data-action="log-service" data-id="' + e.id + '">Log service hours</button>' : "") +
         "</div></div></div>";
     }
     return '<div class="dhead"><div><h1>Events</h1><p class="sub">Tagged by program area so your annual report writes itself &middot; every event carries a chat, a QR and its own money</p></div>' +
@@ -1037,7 +1050,12 @@
     var me = member(ME);
     var sub = { vault: "Vault", directory: "Directory", committees: "My Committees", profile: "My Record", service: "Service Hours" };
     var titles = { home: "Home", chat: "Messages", pay: "Dues", events: "Events", more: state.moreView ? sub[state.moreView] : "More" };
-    $("#appHead").innerHTML = '<div><div class="ah-t">' + titles[state.tab] + '</div><div class="ah-s">' + esc(db.chapter.name) + "</div></div>" +
+    var inRoom = (state.tab === "chat" && state.appChannel) ? chan(state.appChannel) : null;
+    var headT = inRoom ? "# " + inRoom.name : titles[state.tab];
+    var headS = inRoom ? (inRoom.desc || db.chapter.name) : db.chapter.name;
+    $("#appHead").innerHTML =
+      (inRoom ? '<button class="ah-back" data-action="chat-back" aria-label="All messages">&lsaquo;</button>' : "") +
+      '<div class="ah-x"><div class="ah-t">' + esc(headT) + '</div><div class="ah-s">' + esc(headS) + "</div></div>" +
       '<div class="ah-r"><button class="bell" data-action="tab" data-t="home" aria-label="Notifications">' + icon("bell", 19) +
       (unread() ? '<span class="bdg">' + unread() + "</span>" : "") + "</button>" +
       '<button style="background:none;border:0;padding:0;cursor:pointer;line-height:0" data-action="more-view" data-v="profile" title="' + esc(full(me)) + '">' + av(me, 30) + "</button></div>";
@@ -1078,24 +1096,51 @@
       '<button class="btn ghost block" data-action="mark-read" style="margin-top:4px">Mark all as read</button>';
   }
 
+  /* Messages on a phone is two screens, not a split. The tab opens on the list
+     of rooms; tapping one takes the whole screen; the header carries the way back. */
   function appChat() {
+    return state.appChannel ? appChatRoom() : appChatList();
+  }
+
+  function appChatList() {
     var visible = db.channels.filter(function (c) { return c.vis === "all"; });
-    if (!visible.some(function (c) { return c.id === state.appChannel; })) state.appChannel = visible[0].id;
-    var c = chan(state.appChannel);
     var chapterCh = visible.filter(function (x) { return (x.desc || "").indexOf("Committee") < 0; });
     var cteeCh = visible.filter(function (x) { return (x.desc || "").indexOf("Committee") > -1; });
-    function railBtns(list) {
-      return list.map(function (x) {
-        return '<button class="crbtn' + (x.id === state.appChannel ? " on" : "") + '" data-action="app-channel" data-id="' + x.id + '">' +
-          "# " + esc(x.name) + "</button>";
-      }).join("");
+
+    function row(c) {
+      var last = c.msgs[c.msgs.length - 1];
+      var who = last ? member(last.who) : null;
+      var prev = last ? ((who ? who.first + ": " : "") + last.text) : "No messages yet";
+      return '<div class="croom" role="button" tabindex="0" data-action="app-channel" data-id="' + c.id + '">' +
+        '<span class="crhash">#</span>' +
+        '<div class="crx"><div class="crn">' + esc(c.name) +
+        (last ? '<span class="crwhen">' + esc(last.at) + "</span>" : "") + "</div>" +
+        '<div class="crp">' + esc(prev) + "</div></div>" +
+        '<span class="crgo">&rsaquo;</span></div>';
     }
-    var rail = '<div class="chatrail">' +
-      '<div class="crgroup">Chapter</div>' + railBtns(chapterCh) +
-      (cteeCh.length ? '<div class="crgroup">Committees</div>' + railBtns(cteeCh) : "") +
-      '<div class="crgroup">Closed to you</div>' +
-      '<button class="crbtn lock" data-action="locked-channel"># Executive Board &#128274;</button>' +
-      "</div>";
+    function group(label, list) {
+      if (!list.length) return "";
+      return '<div class="crhead">' + label + "</div>" +
+        '<div class="card"><div class="card-b flush">' + list.map(row).join("") + "</div></div>";
+    }
+
+    return '<div class="chatlist">' +
+      group("Chapter", chapterCh) +
+      group("Committees", cteeCh) +
+      '<div class="crhead">Closed to you</div>' +
+      '<div class="card"><div class="card-b flush">' +
+      '<div class="croom lock" role="button" tabindex="0" data-action="locked-channel">' +
+      '<span class="crhash">#</span>' +
+      '<div class="crx"><div class="crn">Executive Board</div>' +
+      '<div class="crp">Officers only. You cannot see it, or see that it has traffic.</div></div>' +
+      '<span class="crlock">&#128274;</span></div>' +
+      "</div></div></div>";
+  }
+
+  function appChatRoom() {
+    var visible = db.channels.filter(function (c) { return c.vis === "all"; });
+    if (!visible.some(function (x) { return x.id === state.appChannel; })) { state.appChannel = null; return appChatList(); }
+    var c = chan(state.appChannel);
     var msgs = c.msgs.map(function (m) {
       var w = member(m.who), mine = m.who === ME;
       var rk = Object.keys(m.reacts || {}).map(function (k) { return "<span>" + k + " " + m.reacts[k] + "</span>"; }).join("");
@@ -1103,11 +1148,10 @@
         '<div class="mb">' + (mine ? "" : '<div class="mn">' + esc(full(w)) + "</div>") + esc(m.text) +
         (rk ? '<div class="reacts">' + rk + "</div>" : "") + '<div class="mt">' + esc(m.at) + "</div></div></div>";
     }).join("");
-    return '<div class="chatwrap">' + rail +
-      '<div class="chatmain"><div class="chattitle"># ' + esc(c.name) + "<span>" + esc(c.desc || "") + "</span></div>" +
+    return '<div class="chatroom">' +
       '<div class="appmsgs" id="appMsgs">' + msgs + "</div>" +
       '<form class="appcomposer" data-action="send-app"><input type="text" id="appInput" placeholder="Message ' +
-      esc(c.name) + '" autocomplete="off"><button class="btn" type="submit">Send</button></form></div></div>';
+      esc(c.name) + '" autocomplete="off"><button class="btn" type="submit">Send</button></form></div>';
   }
 
   function appPay(bal) {
@@ -1310,7 +1354,14 @@
   A["att-back"] = function () { state.attEvent = null; renderDash(); };
   A["view"] = function (el) { state.view = el.dataset.view; state.komId = null; state.attEvent = null; state.evId = null; state.budgetEdit = false; if (el.dataset.filter) state.filter = el.dataset.filter; render(); };
   A["role"] = function (el) { state.role = el.dataset.r; state.view = "home"; state.komId = null; render(); };
-  A["tab"] = function (el) { state.tab = el.dataset.t; if (el.dataset.t !== "more") state.moreView = null; renderApp(); };
+  A["tab"] = function (el) {
+    state.tab = el.dataset.t;
+    if (el.dataset.t !== "more") state.moreView = null;
+    /* tapping Messages while inside a room backs out to the list, as it does on iOS */
+    if (el.dataset.t === "chat") state.appChannel = null;
+    renderApp();
+  };
+  A["chat-back"] = function () { state.appChannel = null; renderApp(); };
   A["more-view"] = function (el) { state.moreView = el.dataset.v || null; state.tab = "more"; renderApp(); };
   A["filter"] = function (el) { state.filter = el.dataset.f; render(); };
   A["clear-sel"] = function () { state.selected = {}; render(); };
@@ -1321,7 +1372,7 @@
   A["accent"] = function (el) { db.chapter.accent = el.dataset.c; document.documentElement.style.setProperty("--brand", el.dataset.c); toast("Chapter accent updated", "brothers see it on next open"); render(); };
   A["titles"] = function (el) { db.chapter.titles = el.dataset.t; toast("Officer titles updated", "across every screen and export"); render(); };
   A["channel"] = function (el) { state.channel = el.dataset.id; renderDash(); };
-  A["app-channel"] = function (el) { state.appChannel = el.dataset.id; renderApp(); };
+  A["app-channel"] = function (el) { state.appChannel = el.dataset.id; renderApp(); var b = $("#appBody"); if (b) b.scrollTop = 0; };
   A["app-channel-jump"] = function (el) {
     var c = db.channels.filter(function (x) { return x.name === el.dataset.id; })[0];
     if (c) { state.appChannel = c.id; state.tab = "chat"; state.moreView = null; renderApp(); }
@@ -1332,7 +1383,7 @@
 
   A["approve"] = function (el) {
     var m = member(el.dataset.id);
-    m.status = "active"; m.requested = null; m.joined = 2026;
+    m.status = "active"; m.requested = null; m.joined = TODAY.getFullYear();
     logA(full(m) + " was approved and added to the roster");
     notify("bell", full(m) + " joined the chapter", "Approved by " + full(member(ROLE_MEMBER[state.role])) + ". He can now see chapter messages, documents and committees.");
     toast(full(m) + " approved", "roster, directory and channels updated");
@@ -1497,8 +1548,8 @@
     db.events.forEach(function (e) {
       byCat[e.cat] = byCat[e.cat] || { n: 0, att: 0, hrs: 0, rev: 0 };
       byCat[e.cat].n++;
-      byCat[e.cat].att += e.past ? e.checkedIn.length : e.rsvps.length;
-      byCat[e.cat].hrs += (e.past ? e.checkedIn.length : 0) * (e.hours || 0);
+      byCat[e.cat].att += isPast(e) ? e.checkedIn.length : e.rsvps.length;
+      byCat[e.cat].hrs += (isPast(e) ? e.checkedIn.length : 0) * (e.hours || 0);
       byCat[e.cat].rev += e.tickets.reduce(function (s, t) { return s + t.paid; }, 0);
     });
     openModal("Program report 2026–27",
@@ -1520,7 +1571,7 @@
       '<div class="attach"><div class="attach-h">Connect this to something</div>' +
       '<div class="row2"><div class="field"><label>An event</label><select id="bEvent" data-action="bill-event">' +
       '<option value="">Not attached &middot; a plain chapter assessment</option>' +
-      db.events.filter(function (x) { return !x.past; }).map(function (x) {
+      upcoming().map(function (x) {
         return '<option value="' + x.id + '">' + esc(x.title) + " &middot; " + dShort(x.date) + "</option>";
       }).join("") + "</select></div>" +
       '<div class="field"><label>A committee budget line</label><select id="bKom">' +
@@ -1571,7 +1622,7 @@
   A["create-bill"] = function () {
     var b = { id: uid("b"), code: rcode(), title: $("#bTitle").value.trim() || "Chapter assessment",
       amount: Math.max(1, Number($("#bAmount").value) || 0), cadence: $("#bCad").value, due: $("#bDue").value || "2026-12-01",
-      created: "2026-10-18", plan: $("#bInstall").checked, cat: $("#bCat").querySelector(".on").dataset.c,
+      created: isoToday(), plan: $("#bInstall").checked, cat: $("#bCat").querySelector(".on").dataset.c,
       eventId: $("#bEvent") ? ($("#bEvent").value || null) : null,
       komId: $("#bKom") ? ($("#bKom").value || null) : null };
     db.bills.push(b);
@@ -1622,7 +1673,7 @@
       var e = ev(o.eventId);
       e.tickets.push({ memberId: ME, qty: state.checkout.qty || 1, paid: o.amount });
       if (e.rsvps.indexOf(ME) < 0) e.rsvps.push(ME);
-      db.payments.push({ id: uid("p"), memberId: ME, billId: null, amount: o.amount, method: state.checkout.method, date: "2026-10-18" });
+      db.payments.push({ id: uid("p"), memberId: ME, billId: null, amount: o.amount, method: state.checkout.method, date: isoToday() });
       logA(myName() + " bought " + (state.checkout.qty || 1) + " ticket(s) to " + e.title + " · " + money(o.amount));
       toast("Ticket purchased", money(o.amount) + " to the chapter, " + money(fee) + " in fees");
       closeModal(); closeSheet(); state.tab = "events"; state.moreView = null; render();
@@ -1638,7 +1689,7 @@
         var owed = ob.amount - paidBy(ME, ob.id), take = Math.min(owed, left);
         if (take <= 0) return;
         db.payments.push({ id: uid("p"), memberId: ME, billId: ob.id, amount: take,
-          method: state.checkout.method, date: "2026-10-18" });
+          method: state.checkout.method, date: isoToday() });
         left -= take; hit.push(ob.title);
       });
       logA(myName() + " paid " + money(o.amount) + " \u00b7 cleared " + hit.length + " bill" + (hit.length === 1 ? "" : "s"));
@@ -1649,7 +1700,7 @@
       return;
     }
     var b = bill(o.billId);
-    db.payments.push({ id: uid("p"), memberId: ME, billId: b.id, amount: o.amount, method: state.checkout.method, date: "2026-10-18" });
+    db.payments.push({ id: uid("p"), memberId: ME, billId: b.id, amount: o.amount, method: state.checkout.method, date: isoToday() });
     logA(myName() + " paid " + money(o.amount) + " toward " + b.title);
     notify("money", "Payment received", money(o.amount) + " toward " + b.title + ". Your receipt is in the Dues tab.");
     toast("Payment recorded", money(o.amount) + " \u00b7 chapter total updated");
@@ -1670,7 +1721,10 @@
   };
   A["plan"] = function (el) {
     var b = bill(el.dataset.id), owed = b.amount - paidBy(ME, b.id), n = 6, per = Math.round((owed / n) * 100) / 100;
-    var dates = ["Oct 18", "Nov 1", "Dec 1", "Jan 1", "Feb 1", "Mar 1"];
+    var dates = [0, 1, 2, 3, 4, 5].map(function (i) {
+      var d = new Date(TODAY.getTime()); d.setMonth(d.getMonth() + i);
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    });
     openModal("Split into monthly payments",
       '<div class="checkout"><div class="co-org">' + esc(db.chapter.name) + '</div><div class="co-t">' + esc(b.title) + "</div>" +
       '<div class="co-a">' + money(per) + '<span style="font-size:14px;font-family:var(--ui);font-weight:600;color:var(--muted)"> /month</span></div>' +
@@ -1685,7 +1739,7 @@
   };
   A["start-plan"] = function (el) {
     var b = bill(el.dataset.id), owed = b.amount - paidBy(ME, b.id), per = Math.round((owed / 6) * 100) / 100;
-    db.payments.push({ id: uid("p"), memberId: ME, billId: b.id, amount: per, method: "ach", date: "2026-10-18" });
+    db.payments.push({ id: uid("p"), memberId: ME, billId: b.id, amount: per, method: "ach", date: isoToday() });
     logA(myName() + " started a 6-month plan on " + b.title + " · " + money(per) + "/month");
     notify("money", "Payment plan started", money(per) + " a month for 6 months toward " + b.title + ". First payment taken today.");
     toast("Plan started", money(per) + "/month · counted as current");
@@ -1720,7 +1774,7 @@
   };
   A["save-payment"] = function (el) {
     var m = member(el.dataset.id), amt = Math.max(0, Number($("#rAmount").value) || 0);
-    db.payments.push({ id: uid("p"), memberId: m.id, billId: $("#rBill").value, amount: amt, method: $("#rMethod").value, date: "2026-10-18" });
+    db.payments.push({ id: uid("p"), memberId: m.id, billId: $("#rBill").value, amount: amt, method: $("#rMethod").value, date: isoToday() });
     logA(full(m) + " paid " + money(amt) + " by " + $("#rMethod").value + " · recorded by " + full(member(ROLE_MEMBER[state.role])));
     toast("Recorded " + money(amt), "ledger and standing updated");
     closeModal(); render();
@@ -1777,7 +1831,7 @@
       '<button class="btn ghost" data-action="close-modal">Done</button>' +
       (paid ? '<button class="btn ghost" data-action="preview-ticket" data-id="' + e.id + '">Preview the page</button>' : ""));
   };
-  A["checkin-qr"] = function () { A["share-event"]({ dataset: { id: db.events.filter(function (x) { return !x.past; })[0].id } }); };
+  A["checkin-qr"] = function () { var n = upcoming()[0]; if (n) A["share-event"]({ dataset: { id: n.id } }); };
   A["preview-ticket"] = function (el) {
     var e = ev(el.dataset.id);
     state.checkout.method = "card"; state.checkout.qty = 1;
@@ -1893,14 +1947,14 @@
     openModal("Log service hours",
       '<div class="field"><label>Brother</label><select id="svM">' + actives().map(function (m) { return '<option value="' + m.id + '">' + esc(full(m)) + "</option>"; }).join("") + "</select></div>" +
       '<div class="row2"><div class="field"><label>Hours</label><input type="number" id="svH" value="' + (e ? e.hours : 4) + '"></div>' +
-      '<div class="field"><label>Date</label><input type="date" id="svD" value="2026-10-18"></div></div>' +
+      '<div class="field"><label>Date</label><input type="date" id="svD" value="' + isoToday() + '"></div></div>' +
       '<div class="field"><label>What was done</label><input type="text" id="svW" value="' + (e ? esc(e.title) : "Community service") + '"></div>',
       '<button class="btn ghost" data-action="close-modal">Cancel</button><button class="btn" data-action="save-service">Log hours</button>');
   };
   A["log-service-app"] = function () {
     openSheet("Log your service hours",
       '<div class="row2"><div class="field"><label>Hours</label><input type="number" id="svH2" value="3"></div>' +
-      '<div class="field"><label>Date</label><input type="date" id="svD2" value="2026-10-18"></div></div>' +
+      '<div class="field"><label>Date</label><input type="date" id="svD2" value="' + isoToday() + '"></div></div>' +
       '<div class="field"><label>What you did</label><input type="text" id="svW2" value="Tutoring at Carver Middle School"></div>' +
       '<p class="hint">The Keeper of Records approves it before it counts toward the chapter total.</p>',
       '<button class="btn ghost" data-action="close-modal">Cancel</button><button class="btn" data-action="save-service-app">Submit</button>');
@@ -2283,11 +2337,11 @@
     var push = $("#rqPush").checked;
     var sel = $("#rqWho") ? Array.prototype.filter.call($("#rqWho").options, function (o) { return o.selected; }).length : 0;
     var r = { id: uid("r"), kind: kind, title: title, billId: null, amount: amt, due: due, pushed: push,
-      created: "2026-10-18", code: rcode(), collected: 0, payers: 0,
+      created: isoToday(), code: rcode(), collected: 0, payers: 0,
       audience: kind === "chapter" ? "All " + actives().length + " active brothers" : kind === "some" ? (sel || 6) + " selected brothers"
         : kind === "event" ? "Public ticket page" : "Public link — any amount" };
     if (kind === "chapter") {
-      var b = { id: uid("b"), code: r.code, title: title, amount: amt, cadence: "one-time", due: due, created: "2026-10-18", plan: false, cat: $("#rqC").value };
+      var b = { id: uid("b"), code: r.code, title: title, amount: amt, cadence: "one-time", due: due, created: isoToday(), plan: false, cat: $("#rqC").value };
       db.bills.push(b); r.billId = b.id;
     }
     db.requests.unshift(r);
@@ -2780,7 +2834,7 @@
   function repHead(title, period) {
     return '<div class="rep-head"><div><div class="rh-org">' + esc(db.chapter.name) + '</div>' +
       '<div class="rh-sub">' + esc(db.chapter.org) + " &middot; " + esc(db.chapter.district) + " &middot; chartered " + db.chapter.founded + "</div></div>" +
-      '<div class="rh-r">Prepared ' + dLabel("2026-10-18") + "<br>by " + esc(full(member(ROLE_MEMBER[state.role]))) + "<br>" + esc(member(ROLE_MEMBER[state.role]).roles[0]) + "</div></div>" +
+      '<div class="rh-r">Prepared ' + dLabel(isoToday()) + "<br>by " + esc(full(member(ROLE_MEMBER[state.role]))) + "<br>" + esc(member(ROLE_MEMBER[state.role]).roles[0]) + "</div></div>" +
       '<div class="rep-title">' + esc(title) + '</div><div class="rep-period">' + esc(period) + "</div>";
   }
   function repFoot(n) {

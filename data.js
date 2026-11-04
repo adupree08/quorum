@@ -1,6 +1,74 @@
 /* Quorum — seed data for a Divine Nine style alumni (graduate) chapter. */
 window.QUORUM_SEED = function () {
 
+  /* ------------------------------------------------------------------
+     The seed is authored against one fixed day so every number hangs
+     together: 33 days past due, 9 days waiting, this meeting before that
+     one. Shift the whole record onto today, keeping all those intervals,
+     so the chapter is never showing a meeting that already happened as
+     something coming up.
+     ------------------------------------------------------------------ */
+  var ANCHOR = "2026-10-18";
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var RE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+  var RE_MD = /^\d{2}-\d{2}$/;
+  var RE_LBL = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ([1-9]|[12]\d|3[01])$/;
+  var FULLMON = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+  var RE_INLINE = /\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+([1-9]|[12]\d|3[01])\b(?!\s*,?\s*(?:19|20)\d\d)([^\d]|$)/g;
+
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function isoOf(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+
+  function reanchor(root) {
+    var now = new Date(); now.setHours(12, 0, 0, 0);
+    var anchor = new Date(ANCHOR + "T12:00:00");
+    var days = Math.round((now - anchor) / 86400000);
+    if (!days) return root;
+
+    function bump(d) { var x = new Date(d.getTime()); x.setDate(x.getDate() + days); return x; }
+
+    function shift(v) {
+      if (RE_ISO.test(v)) return isoOf(bump(new Date(v + "T12:00:00")));
+      var md = RE_MD.exec(v);
+      if (md) { var b = bump(new Date(anchor.getFullYear() + "-" + v + "T12:00:00")); return pad(b.getMonth() + 1) + "-" + pad(b.getDate()); }
+      var lb = RE_LBL.exec(v);
+      if (lb) {
+        var m = MON.indexOf(lb[1]);
+        var l = bump(new Date(anchor.getFullYear(), m, Number(lb[2]), 12));
+        return MON[l.getMonth()] + " " + l.getDate();
+      }
+      /* dates written into a sentence, e.g. "$285 due November 1" or
+         "Nov 14, 6:00 PM". A month name followed by a year is left alone. */
+      return v.replace(RE_INLINE, function (whole, name, day, after) {
+        if (/^\s*(19|20)\d\d/.test(after)) return whole;
+        var full = FULLMON.indexOf(name), abbr = MON.indexOf(name);
+        var mi = full > -1 ? full : abbr;
+        if (mi < 0) return whole;
+        var d = bump(new Date(anchor.getFullYear(), mi, Number(day), 12));
+        return (full > -1 ? FULLMON[d.getMonth()] : MON[d.getMonth()]) + " " + d.getDate() + after;
+      });
+    }
+
+    (function walk(node) {
+      if (!node || typeof node !== "object") return;
+      if (Object.prototype.toString.call(node) === "[object Array]") {
+        for (var i = 0; i < node.length; i++) {
+          if (typeof node[i] === "string") node[i] = shift(node[i]);
+          else walk(node[i]);
+        }
+        return;
+      }
+      for (var k in node) {
+        if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
+        if (typeof node[k] === "string") node[k] = shift(node[k]);
+        else walk(node[k]);
+      }
+    })(root);
+
+    return root;
+  }
+
   var CATS = {
     business:    { label: "Chapter Business", color: "#3C4654" },
     scholarship: { label: "Scholarship",      color: "#2F4B8F" },
@@ -364,7 +432,7 @@ window.QUORUM_SEED = function () {
     { id: "n5", icon: "cake", title: "2 brothers have birthdays this month", body: "Patrick Hollaway (Oct 3) and Avery Rutledge (Oct 19). Tap to send a note from the chapter.", when: "Oct 1", read: true }
   ];
 
-  return {
+  return reanchor({
     chapter: {
       name: "Tulsa Alumni Chapter", org: "Kappa Alpha Psi Fraternity, Inc. · Tulsa, Oklahoma",
       founded: 1974, district: "Southwestern Province",
@@ -383,5 +451,5 @@ window.QUORUM_SEED = function () {
       { t: "Lamar Pryce opened the Scholarship essay contest", at: "Oct 8" },
       { t: "Social Action registered 94 voters at the Greenwood drive", at: "Oct 5" }
     ]
-  };
+  });
 };
