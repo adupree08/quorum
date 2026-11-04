@@ -3092,6 +3092,7 @@
     var el = e.target.closest("[data-action]");
     if (el && el.dataset.action === "select") A["select"](el);
     if (el && el.dataset.action === "bill-event") A["bill-event"](el);
+    if (el && el.dataset.action === "assign-office") A["assign-office"](el);
     if (el && (el.dataset.action === "bplanned" || el.dataset.action === "bactual" || el.dataset.action === "bline")) {
       var row = db.budget[Number(el.dataset.i)];
       if (row) {
