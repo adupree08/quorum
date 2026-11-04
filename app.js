@@ -3051,7 +3051,13 @@
     var el = e.target.closest("[data-action]");
     if (!el) return;
     var a = el.dataset.action;
-    if (A[a]) { e.preventDefault(); if (!mayDo(a)) { refuse(a); return; } A[a](el); }
+    if (A[a]) {
+      e.preventDefault();
+      if (!mayDo(a)) { refuse(a); return; }
+      var before = navSig();
+      A[a](el);
+      if (navSig() !== before && window.QUORUM_SHELL && window.QUORUM_SHELL.pushNav) window.QUORUM_SHELL.pushNav();
+    }
   });
   document.addEventListener("change", function (e) {
     var el = e.target.closest("[data-action]");
@@ -3102,7 +3108,16 @@
     if (e.key === "Escape") { if (!$("#modalRoot").hidden) closeModal(); if (!$("#appSheet").hidden) closeSheet(); return; }
     if (e.key === "Enter" || e.key === " ") {
       var r = e.target.closest && e.target.closest('[role="button"][data-action]');
-      if (r) { e.preventDefault(); var a = r.dataset.action; if (A[a]) { if (!mayDo(a)) { refuse(a); return; } A[a](r); } }
+      if (r) {
+        e.preventDefault();
+        var a = r.dataset.action;
+        if (A[a]) {
+          if (!mayDo(a)) { refuse(a); return; }
+          var b4 = navSig();
+          A[a](r);
+          if (navSig() !== b4 && window.QUORUM_SHELL && window.QUORUM_SHELL.pushNav) window.QUORUM_SHELL.pushNav();
+        }
+      }
     }
   });
   // the old two-up surface switcher was replaced by the shell's mode bar
@@ -3116,6 +3131,31 @@
   });
 
   function render() { renderSide(); renderDash(); renderApp(); }
+
+  /* ----------------------------- browser Back -----------------------------
+     Back is the main gesture on a phone, so it has to move inside the app
+     rather than leave it. These are the fields that count as "where you are";
+     anything else (a search box, an edit toggle) is not worth a history entry. */
+  var NAV_KEYS = ["role", "view", "tab", "komId", "evId", "attEvent", "moreView",
+    "channel", "appChannel", "filter", "reqKind", "profileTab", "calYM"];
+  function navState() {
+    var o = {};
+    NAV_KEYS.forEach(function (k) { o[k] = state[k]; });
+    return o;
+  }
+  function navSig() { return JSON.stringify(navState()); }
+  function applyNav(o) {
+    if (!o) return;
+    NAV_KEYS.forEach(function (k) { if (k in o) state[k] = o[k]; });
+    closeModal(); closeSheet();
+    render();
+    window.scrollTo(0, 0);
+  }
+  function overlayOpen() {
+    var m = $("#modalRoot"), s = $("#appSheet");
+    return !!((m && !m.hidden) || (s && !s.hidden));
+  }
+  function closeOverlays() { closeModal(); closeSheet(); }
 
   /* ---------------- bridge for the shell (modes, identity, live sync) --------------- */
   window.QUORUM = {
@@ -3139,6 +3179,10 @@
       closeModal(); closeSheet();
       render();
     },
+    navState: navState,
+    applyNav: applyNav,
+    overlayOpen: overlayOpen,
+    closeOverlays: closeOverlays,
     snapshot: function () { return db; },
     restore: function (obj) { if (obj && obj.members) { db = obj; render(); } },
     onChange: null

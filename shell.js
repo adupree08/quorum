@@ -146,6 +146,7 @@
     if (m === "launcher") buildLauncher();
     buildChrome();
     window.scrollTo(0, 0);
+    pushNav();
   }
   function setIdentity(id) {
     try { localStorage.setItem(KEY_ID, id); } catch (e) {}
@@ -219,6 +220,60 @@
     }, 650);
   }
 
+  /* ------------------------------ history ------------------------------
+     One owner for the Back button. The shell knows the surface (launcher,
+     dashboard, phone) and who is signed in; app.js knows which page inside
+     it. Both go into one entry, pushed without touching the URL so the
+     artifact link still works and nothing needs route parsing. */
+  var navReady = false;
+
+  function hereNav() {
+    var q = null;
+    try { if (window.QUORUM && window.QUORUM.navState) q = window.QUORUM.navState(); } catch (e) {}
+    return { mode: mode, step: step, id: window.QUORUM_ME || null, q: q };
+  }
+
+  function sameNav(a, b) {
+    return a && b && a.mode === b.mode && a.step === b.step && a.id === b.id &&
+      JSON.stringify(a.q) === JSON.stringify(b.q);
+  }
+
+  function pushNav() {
+    if (!navReady) return;
+    var now = hereNav();
+    if (sameNav(history.state && history.state.nav, now)) return;
+    try { history.pushState({ nav: now }, ""); } catch (e) {}
+  }
+
+  function startNav() {
+    if (navReady) return;
+    navReady = true;
+    try { history.replaceState({ nav: hereNav() }, ""); } catch (e) {}
+    window.addEventListener("popstate", function (e) {
+      /* a dialog is the top of the stack: Back should dismiss it and stay put */
+      if (window.QUORUM && window.QUORUM.overlayOpen && window.QUORUM.overlayOpen()) {
+        window.QUORUM.closeOverlays();
+        try { history.pushState({ nav: hereNav() }, ""); } catch (err) {}
+        return;
+      }
+      var n = e.state && e.state.nav;
+      if (!n) return;
+      if (n.id && n.id !== window.QUORUM_ME) {
+        try { localStorage.setItem(KEY_ID, n.id); } catch (err) {}
+        window.QUORUM_ME = n.id;
+        if (window.QUORUM && window.QUORUM.setIdentity) window.QUORUM.setIdentity(n.id);
+      }
+      step = n.step || "welcome";
+      mode = n.mode || "launcher";
+      document.documentElement.setAttribute("data-mode", mode);
+      try { localStorage.setItem(KEY_MODE, mode); } catch (err) {}
+      if (mode === "launcher") buildLauncher();
+      buildChrome();
+      if (window.QUORUM && window.QUORUM.applyNav) window.QUORUM.applyNav(n.q);
+      window.scrollTo(0, 0);
+    });
+  }
+
   /* -------------------------------- events -------------------------------- */
   document.addEventListener("click", function (e) {
     var go = e.target.closest("[data-go]");
@@ -226,7 +281,7 @@
     var hm = e.target.closest("[data-step-home]");
     if (hm) { e.preventDefault(); step = "welcome"; setMode("launcher"); return; }
     var st = e.target.closest("[data-step]");
-    if (st) { e.preventDefault(); step = st.dataset.step; buildLauncher(); paintSync(); return; }
+    if (st) { e.preventDefault(); step = st.dataset.step; buildLauncher(); paintSync(); pushNav(); return; }
     var md = e.target.closest("[data-mode]");
     if (md) { e.preventDefault(); setMode(md.dataset.mode); return; }
     var cp = e.target.closest("[data-copy]");
@@ -240,6 +295,7 @@
 
   window.QUORUM_SHELL = {
     bridgeReady: function () { boot(); },
+    pushNav: pushNav,
     openPicker: function () { step = "signin"; setMode("launcher"); },
     clearLive: function () { if (liveDoc) liveDoc.set({ json: "", cid: CID, at: Date.now() }).catch(function () {}); }
   };
@@ -271,6 +327,7 @@
       buildChrome();
     } catch (err) { fail("building the launcher", err); return; }
     try { startSync(); } catch (err) { setSync("local"); }
+    try { startNav(); } catch (err) {}
   }
   var waited = 0;
   var poll = setInterval(function () {
