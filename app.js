@@ -44,6 +44,15 @@
   function initials(m) { return m ? (m.first[0] + m.last[0]).toUpperCase() : "?"; }
   function actives() { return db.members.filter(function (m) { return m.status === "active"; }); }
   function pendings() { return db.members.filter(function (m) { return m.status === "pending"; }); }
+  function myName() { var m = member(ME); return m ? full(m) : "A brother"; }
+  function byDate(a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }
+  function upcoming() { return db.events.filter(function (e) { return !e.past; }).sort(byDate); }
+  function pastEvents() { return db.events.filter(function (e) { return e.past; }).sort(byDate).reverse(); }
+  function openBills(mid) {
+    return db.bills.filter(function (b) { return paidBy(mid, b.id) < b.amount; }).sort(function (x, y) {
+      return x.due < y.due ? -1 : x.due > y.due ? 1 : 0;
+    });
+  }
   function isOfficer(m) { return m && m.roles[0] !== "Member"; }
   function officers() { return actives().filter(isOfficer); }
   function avColor(m) { var h = 0, s = (m ? m.id + m.last : "x"); for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return "hsl(" + h + " 30% 40%)"; }
@@ -166,6 +175,41 @@
   ];
   function can(v) { for (var i = 0; i < NAV.length; i++) if (NAV[i].id === v) return NAV[i].roles.indexOf(state.role) > -1; return false; }
 
+  /* An office is not a menu. These are the acts a chapter constitution reserves,
+     so the dispatcher refuses them too, not just the sidebar. Anything absent
+     here is open to every officer. */
+  var ACT_ROLES = {
+    "approve":             ["president", "vicepresident"],
+    "start-ballot":        ["president"],
+    "new-bill":            ["president", "treasurer"],
+    "create-bill":         ["president", "treasurer"],
+    "new-request":         ["president", "treasurer"],
+    "record-payment":      ["president", "treasurer"],
+    "chase":               ["president", "treasurer"],
+    "new-announcement":    ["president", "vicepresident", "secretary"],
+    "invite":              ["president", "vicepresident"],
+    "new-event":           ["president", "vicepresident", "strategus", "chair"],
+    "approve-service":     ["president", "vicepresident", "secretary", "strategus"],
+    "approve-all-service": ["president", "vicepresident", "secretary", "strategus"],
+    "approve-minutes":     ["president", "vicepresident", "secretary"],
+    "upload-minutes":      ["president", "vicepresident", "secretary"]
+  };
+  var ROLE_TITLE = {
+    president: "the Polemarch", vicepresident: "the Vice Polemarch", treasurer: "the Keeper of Exchequer",
+    secretary: "the Keeper of Records", strategus: "the Strategus", chair: "a committee chair", member: "a member"
+  };
+  function mayDo(a) {
+    var r = ACT_ROLES[a];
+    return !r || r.indexOf(state.role) > -1;
+  }
+  function whoMay(a) {
+    var r = ACT_ROLES[a] || [];
+    return r.map(function (x) { return ROLE_TITLE[x]; }).join(" or ");
+  }
+  function refuse(a) {
+    toast("That is not your office", "Only " + whoMay(a) + " can do this");
+  }
+
   function toast(main, sub) {
     var t = $("#ticker"), el = document.createElement("div");
     el.className = "tmsg";
@@ -217,14 +261,15 @@
         '<span><span class="nm">' + esc(full(m)) + '</span><span class="rl2">Initiated ' + m.initYear + ", " + esc(m.initChapter) + " &middot; vouched by " + esc(m.vouchedBy) + "</span></span></div></td>" +
         '<td class="r"><span class="chip neutral">' + esc(m.requested) + "</span></td>" +
         '<td class="r"><button class="btn ghost sm" data-action="profile" data-id="' + m.id + '">Review</button> ' +
-        '<button class="btn sm" data-action="approve" data-id="' + m.id + '">Approve</button></td></tr>';
+        (mayDo("approve") ? '<button class="btn sm" data-action="approve" data-id="' + m.id + '">Approve</button>' : "") +
+        "</td></tr>";
     }).join("") : '<tr><td colspan="3"><div class="empty">Nobody is waiting. The queue is clear.</div></td></tr>';
 
     var acts = db.activity.slice(0, 7).map(function (a) {
       return '<div class="act"><span class="ad"></span><span>' + esc(a.t) + '<div class="at">' + esc(a.at) + "</div></span></div>";
     }).join("");
 
-    var evRows = db.events.filter(function (e) { return !e.past; }).slice(0, 4).map(function (e) {
+    var evRows = upcoming().slice(0, 4).map(function (e) {
       var parts = dShort(e.date).split(" ");
       return '<div class="docrow click" role="button" tabindex="0" data-action="open-event" data-id="' + e.id + '">' +
         '<div style="min-width:38px;text-align:center"><div class="num" style="font-weight:700;font-size:15px">' + parts[1] + "</div>" +
@@ -260,13 +305,13 @@
 
     var meNow = member(ROLE_MEMBER[state.role]);
     var QA = [
-      canMoney ? ["new-bill", "money", "Collect money", "Dues, assessments, tickets"] : null,
+      ["new-bill", "money", "Collect money", "Dues, assessments, tickets"],
       ["new-announcement", "bell", "Post an announcement", "Reaches every phone"],
       ["new-event", "cal", "Create an event", "Tagged, ticketed, QR check-in"],
       ["invite", "people", "Invite a brother", "Single-use link"],
       ["upload", "doc", "Add to the Vault", "With a visibility rule"],
       ["start-ballot", "vault", "Call a vote", "Financial brothers only"]
-    ].filter(Boolean);
+    ].filter(function (a) { return mayDo(a[0]); });
     var qa = '<div class="qa-grid">' + QA.map(function (a) {
       return '<button class="qa" data-action="' + a[0] + '"><span class="qa-i">' + icon(a[1], 17) + "</span>" +
         '<span class="qa-x"><span class="qa-t">' + a[2] + '</span><span class="qa-d">' + a[3] + "</span></span>" +
@@ -667,7 +712,7 @@
       return '<div class="cdow">' + x + "</div>";
     }).join("");
 
-    var upcoming = db.events.filter(function (e) { return !e.past; }).slice(0, 5).map(function (e) {
+    var next5 = upcoming().slice(0, 5).map(function (e) {
       return '<div class="docrow click" role="button" tabindex="0" data-action="open-event" data-id="' + e.id + '">' +
         '<span class="cdot" style="background:' + catOf(e.cat).color + '"></span>' +
         '<div><div class="dn">' + esc(e.title) + '</div><div class="dm">' + dLabel(e.date) + " &middot; " + e.time + "</div></div>" +
@@ -693,7 +738,7 @@
       '<div class="callgd">' + legend + "</div>" +
 
       '<div class="sec"><h2>Next five</h2><div class="card"><div class="card-b flush">' +
-      (upcoming || '<div class="empty">Nothing scheduled.</div>') + "</div></div></div>";
+      (next5 || '<div class="empty">Nothing scheduled.</div>') + "</div></div></div>";
   }
 
   function viewEvents() {
@@ -722,8 +767,8 @@
     }
     return '<div class="dhead"><div><h1>Events</h1><p class="sub">Tagged by program area so your annual report writes itself &middot; every event carries a chat, a QR and its own money</p></div>' +
       '<div class="dactions"><button class="btn ghost" data-action="program-report">Program report</button><button class="btn" data-action="new-event">Create event</button></div></div>' +
-      '<div class="sec"><h2>Upcoming</h2>' + db.events.filter(function (e) { return !e.past; }).map(card).join("") + "</div>" +
-      '<div class="sec"><h2>Past</h2>' + db.events.filter(function (e) { return e.past; }).map(card).join("") + "</div>";
+      '<div class="sec"><h2>Upcoming</h2>' + upcoming().map(card).join("") + "</div>" +
+      '<div class="sec"><h2>Past</h2>' + pastEvents().map(card).join("") + "</div>";
   }
 
   function viewEventDetail() {
@@ -1011,7 +1056,7 @@
 
   function appHome(bal) {
     var a = Math.round(attRate(ME) * 100), hrs = totalHours(ME);
-    var next = db.events.filter(function (e) { return !e.past; })[0];
+    var next = upcoming()[0];
     var head = bal > 0
       ? '<div class="acard balance"><div class="bl">Your chapter balance</div><div class="bv">' + money(bal) + "</div>" +
         '<div class="bn">' + db.bills.filter(function (b) { return paidBy(ME, b.id) < b.amount; }).length + " unpaid bills</div>" +
@@ -1095,7 +1140,7 @@
   }
 
   function appEvents() {
-    var rows = db.events.filter(function (e) { return !e.past; }).map(function (e) {
+    var rows = upcoming().map(function (e) {
       var going = e.rsvps.indexOf(ME) > -1;
       var qty = e.tickets.filter(function (t) { return t.memberId === ME; }).reduce(function (s, t) { return s + t.qty; }, 0);
       return '<div class="evrow"><div style="display:flex;gap:5px;flex-wrap:wrap">' + catChip(e.cat) + (e.mandatory ? '<span class="chip late">Mandatory</span>' : "") + "</div>" +
@@ -1564,7 +1609,7 @@
     state.checkout.method = "ach";
     checkoutModal({ modalTitle: "quorum.app/p/" + b.code, title: b.title, subtitle: "Due " + dLabel(b.due) + " · " + db.chapter.name,
       amount: owed > 0 ? owed : b.amount, billId: b.id, kind: "bill",
-      note: "This is the page a brother sees when he taps the link. Paying here records against Andre Dupree so you can watch both surfaces update." });
+      note: "This is the page a brother sees when he taps the link. Paying here records against " + myName() + " so you can watch both surfaces update." });
   };
   A["method"] = function (el) { state.checkout.method = el.dataset.m; checkoutModal(state.ctx); };
   A["fee-info"] = function () {
@@ -1583,23 +1628,45 @@
       e.tickets.push({ memberId: ME, qty: state.checkout.qty || 1, paid: o.amount });
       if (e.rsvps.indexOf(ME) < 0) e.rsvps.push(ME);
       db.payments.push({ id: uid("p"), memberId: ME, billId: null, amount: o.amount, method: state.checkout.method, date: "2026-10-18" });
-      logA("Andre Dupree bought " + (state.checkout.qty || 1) + " ticket(s) to " + e.title + " · " + money(o.amount));
+      logA(myName() + " bought " + (state.checkout.qty || 1) + " ticket(s) to " + e.title + " · " + money(o.amount));
       toast("Ticket purchased", money(o.amount) + " to the chapter, " + money(fee) + " in fees");
       closeModal(); closeSheet(); state.tab = "events"; state.moreView = null; render();
       setTimeout(function () { A["my-ticket"]({ dataset: { id: e.id } }); }, 180);
       return;
     }
+    if (o.kind === "balance") {
+      /* one tap, several bills: pour the money into each open bill in due-date
+         order until it runs out, so nothing is ever overpaid. */
+      var left = o.amount, hit = [];
+      openBills(ME).forEach(function (ob) {
+        if (left <= 0) return;
+        var owed = ob.amount - paidBy(ME, ob.id), take = Math.min(owed, left);
+        if (take <= 0) return;
+        db.payments.push({ id: uid("p"), memberId: ME, billId: ob.id, amount: take,
+          method: state.checkout.method, date: "2026-10-18" });
+        left -= take; hit.push(ob.title);
+      });
+      logA(myName() + " paid " + money(o.amount) + " \u00b7 cleared " + hit.length + " bill" + (hit.length === 1 ? "" : "s"));
+      notify("money", "Payment received", money(o.amount) + " across " + hit.length + " bill" +
+        (hit.length === 1 ? "" : "s") + ". Your receipts are in the Dues tab.");
+      toast("Balance cleared", hit.join(" \u00b7 "));
+      closeModal(); closeSheet(); render();
+      return;
+    }
     var b = bill(o.billId);
     db.payments.push({ id: uid("p"), memberId: ME, billId: b.id, amount: o.amount, method: state.checkout.method, date: "2026-10-18" });
-    logA("Andre Dupree paid " + money(o.amount) + " toward " + b.title);
+    logA(myName() + " paid " + money(o.amount) + " toward " + b.title);
     notify("money", "Payment received", money(o.amount) + " toward " + b.title + ". Your receipt is in the Dues tab.");
     toast("Payment recorded", money(o.amount) + " \u00b7 chapter total updated");
     closeModal(); closeSheet(); render();
   };
   A["pay-all"] = function () {
-    var bal = balanceOf(ME), first = db.bills.filter(function (b) { return paidBy(ME, b.id) < b.amount; })[0];
+    var bal = balanceOf(ME), open = openBills(ME);
     state.checkout.method = "ach";
-    checkoutModal({ modalTitle: "Pay your balance", title: "Chapter balance", subtitle: db.chapter.name, amount: bal, billId: first.id, kind: "bill", phone: true, note: "Paying in full clears every open bill at once." });
+    checkoutModal({ modalTitle: "Pay your balance", title: "Chapter balance", subtitle: db.chapter.name,
+      amount: bal, billId: open.length ? open[0].id : null, kind: "balance", phone: true,
+      note: "This clears " + open.length + " open bill" + (open.length === 1 ? "" : "s") +
+        ". The money is split across them in due-date order." });
   };
   A["pay-bill"] = function (el) {
     var b = bill(el.dataset.id), owed = b.amount - paidBy(ME, b.id);
@@ -1624,7 +1691,7 @@
   A["start-plan"] = function (el) {
     var b = bill(el.dataset.id), owed = b.amount - paidBy(ME, b.id), per = Math.round((owed / 6) * 100) / 100;
     db.payments.push({ id: uid("p"), memberId: ME, billId: b.id, amount: per, method: "ach", date: "2026-10-18" });
-    logA("Andre Dupree started a 6-month plan on " + b.title + " · " + money(per) + "/month");
+    logA(myName() + " started a 6-month plan on " + b.title + " · " + money(per) + "/month");
     notify("money", "Payment plan started", money(per) + " a month for 6 months toward " + b.title + ". First payment taken today.");
     toast("Plan started", money(per) + "/month · counted as current");
     closeModal(); render();
@@ -1635,7 +1702,7 @@
     openSheet("Receipt",
       '<div class="checkout"><div class="co-org">' + esc(db.chapter.name) + '</div><div class="co-t">' + esc(b ? b.title : "Event ticket") + "</div>" +
       '<div class="co-a">' + money(p.amount) + '</div><div style="margin-top:13px">' +
-      '<div class="kv"><span class="k">Paid by</span><span class="v">Andre Dupree</span></div>' +
+      '<div class="kv"><span class="k">Paid by</span><span class="v">' + esc(myName()) + "</span></div>" +
       '<div class="kv"><span class="k">Date</span><span class="v">' + dLabel(p.date) + "</span></div>" +
       '<div class="kv"><span class="k">Method</span><span class="v">' + (p.method === "ach" ? "Bank account" : p.method === "card" ? "Card" : "Check") + "</span></div>" +
       '<div class="kv"><span class="k">Processing fee</span><span class="v num">' + money(fee) + "</span></div>" +
@@ -1732,7 +1799,7 @@
   A["rsvp"] = function (el) {
     var e = ev(el.dataset.id);
     if (e.rsvps.indexOf(ME) < 0) e.rsvps.push(ME);
-    logA("Andre Dupree RSVP'd to " + e.title);
+    logA(myName() + " RSVP'd to " + e.title);
     toast("RSVP recorded", "officers see it immediately");
     render();
   };
@@ -1743,7 +1810,7 @@
     openModal(e.price ? "Your tickets" : "Your check-in code",
       '<div class="ticket"><div class="tt">' + esc(e.title) + '</div><div class="tm">' + dLabel(e.date) + " &middot; " + e.time + "</div>" +
       '<div class="tq">' + qrMarkup("https://quorum.app/t/" + tc) + "</div>" +
-      '<div class="tt">' + (e.price ? qty + " ticket" + (qty > 1 ? "s" : "") + " · Andre Dupree" : "Andre Dupree") + "</div>" +
+      '<div class="tt">' + (e.price ? qty + " ticket" + (qty > 1 ? "s" : "") + " · " + esc(myName()) : esc(myName())) + "</div>" +
       '<div class="tc">' + tc + "</div></div>" +
       '<p style="font-size:12.5px;color:var(--muted);margin-top:13px">Show this at the door. Scanning it checks him in, credits ' + (e.hours || 0) +
       " service hours and updates his attendance rate. The code rotates after the event and cannot be forwarded.</p>",
@@ -1813,7 +1880,7 @@
   };
   A["send-excuse"] = function (el) {
     db.excuses.push({ id: uid("x"), memberId: ME, eventId: el.dataset.id, reason: $("#xReason").value.trim(), status: "pending", at: "Just now" });
-    logA("Andre Dupree requested an excuse for " + ev(el.dataset.id).title);
+    logA(myName() + " requested an excuse for " + ev(el.dataset.id).title);
     toast("Excuse requested", "it is in the Keeper of Records queue on the dashboard");
     closeSheet(); render();
   };
@@ -1853,7 +1920,7 @@
   A["save-service-app"] = function () {
     var h = Number($("#svH2").value) || 0;
     db.service.push({ id: uid("s"), memberId: ME, eventId: null, hours: h, what: $("#svW2").value.trim(), date: $("#svD2").value, status: "pending" });
-    logA("Andre Dupree submitted " + h + " service hours for approval");
+    logA(myName() + " submitted " + h + " service hours for approval");
     toast("Submitted for approval", "it is in the Keeper of Records queue");
     closeSheet(); render();
   };
@@ -2027,7 +2094,7 @@
   A["save-profile"] = function () {
     var m = member(ME);
     m.phone = $("#epP").value; m.email = $("#epE").value; m.employer = $("#epEm").value; m.jobTitle = $("#epT").value; m.shirt = $("#epS").value;
-    logA("Andre Dupree updated his contact and career information");
+    logA(myName() + " updated his contact and career information");
     toast("Profile updated", "the roster and directory now match");
     closeSheet(); render();
   };
@@ -2060,7 +2127,17 @@
       '<button class="btn ghost" data-action="close-modal">Close</button><button class="btn" data-action="copy" data-v="' + esc(csv) + '">Copy</button>', true);
   };
 
-  A["open-committee"] = function (el) { state.komId = el.dataset.id; state.view = "committees"; closeModal(); render(); };
+  A["open-committee"] = function (el) {
+    if (state.role === "chair") {
+      var mine = window.QUORUM.committeeChairedBy(ROLE_MEMBER.chair);
+      var k = kom(el.dataset.id);
+      if (k && mine && k.name !== mine) {
+        toast("That is not your committee", "A chair sees his own committee and the chapter roster");
+        return;
+      }
+    }
+    state.komId = el.dataset.id; state.view = "committees"; closeModal(); render();
+  };
   A["back-committees"] = function () { state.komId = null; render(); };
   A["toggle-task"] = function (el) {
     var k = kom(el.dataset.k), t = find(k.tasks, el.dataset.t);
@@ -2160,7 +2237,7 @@
   A["pick-photo"] = function (el) {
     var m = member(ME);
     m.photo = true; m.photoVariant = Number(el.dataset.v);
-    logA("Andre Dupree updated his photo from the app");
+    logA(myName() + " updated his photo from the app");
     toast("Photo updated in the app", "the dashboard roster already shows it");
     closeSheet(); render();
   };
@@ -2808,7 +2885,7 @@
     var el = e.target.closest("[data-action]");
     if (!el) return;
     var a = el.dataset.action;
-    if (A[a]) { e.preventDefault(); A[a](el); }
+    if (A[a]) { e.preventDefault(); if (!mayDo(a)) { refuse(a); return; } A[a](el); }
   });
   document.addEventListener("change", function (e) {
     var el = e.target.closest("[data-action]");
@@ -2859,7 +2936,7 @@
     if (e.key === "Escape") { if (!$("#modalRoot").hidden) closeModal(); if (!$("#appSheet").hidden) closeSheet(); return; }
     if (e.key === "Enter" || e.key === " ") {
       var r = e.target.closest && e.target.closest('[role="button"][data-action]');
-      if (r) { e.preventDefault(); var a = r.dataset.action; if (A[a]) A[a](r); }
+      if (r) { e.preventDefault(); var a = r.dataset.action; if (A[a]) { if (!mayDo(a)) { refuse(a); return; } A[a](r); } }
     }
   });
   // the old two-up surface switcher was replaced by the shell's mode bar

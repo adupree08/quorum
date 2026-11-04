@@ -9,6 +9,9 @@
      into the Claude app on iOS, which is not the demo. */
   var SHARE_URL = "https://adupree08.github.io/quorum/";
   var CID = Math.random().toString(36).slice(2);
+  /* Served as plain static files there is no shared record, so the launcher
+     must not promise the room that their taps land on the dashboard. */
+  var SHARED = !!(window.claude && typeof window.claude.use === "function");
 
   /* ---- runs synchronously, before app.js boots ---- */
   var saved = null;
@@ -77,7 +80,8 @@
       '<div class="wqr-side">' +
       '<h2>Follow along on your own phone</h2>' +
       '<p class="lp">Point your camera at the code. The app opens full screen and signs you in as a brother of this chapter. ' +
-      "Everything you tap is live, and the dashboard on this screen sees it.</p>" +
+      (SHARED ? "Everything you tap is live, and the dashboard on this screen sees it."
+              : "Your phone gets its own copy of the chapter, so tap anything, pay anything, break anything.") + "</p>" +
       '<div class="linkrow"><code>' + esc(url.replace("https://", "")) + "</code>" +
       '<button class="btn sm ghost" data-copy="' + esc(url) + '">Copy</button></div>' +
       '<p class="lfine">No download, no account. Works on any phone with a camera.</p>' +
@@ -121,9 +125,11 @@
       "<h1>Sign in as</h1>" +
       '<p class="lsub">' + (PHONE
         ? "Eight brothers, each with the access his office really carries. Pick one and you are in. " +
-          "Whatever you tap shows up on the dashboard in the room."
+          (SHARED ? "Whatever you tap shows up on the dashboard in the room."
+                  : "Your phone keeps its own copy, so nothing you do here touches anyone else\u2019s screen.")
         : "Eight profiles, each with the access that office really carries. " +
-          "Pick one on this screen and a different one on your phone to watch both sides move together.") +
+          (SHARED ? "Pick one on this screen and a different one on your phone to watch both sides move together."
+                  : "Pick one here and a different one on your phone. Each device keeps its own copy of the chapter.")) +
       "</p></header>" +
       '<div class="pgrid pgrid-wide">' + cards + "</div>" +
       '<div class="lfoot"><span class="syncdot" id="syncDot"></span><span id="syncTxt">Connecting&hellip;</span>' +
