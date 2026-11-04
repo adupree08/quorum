@@ -448,7 +448,7 @@ window.QUORUM_SEED = function () {
   ];
 
   var notes = [
-    { id: "n1", icon: "money", title: "2026–27 Chapter & Grand Tax is open", body: "$285 due November 1. Pay in full or set up monthly installments.", when: "Sep 2", read: true },
+    { id: "n1", icon: "money", title: "2026–27 Chapter & Grand Tax is open", body: "$285 due November 1. Pay by bank or card from your phone.", when: "Sep 2", read: true },
     { id: "n2", icon: "doc", title: "October minutes posted", body: "Immanuel Oyelaran added a document to Minutes.", when: "Oct 9", read: true },
     { id: "n3", icon: "cal", title: "Founders Day Banquet — tickets open", body: "Nov 14, 6:00 PM at The Mayo Hotel. $75 per plate, guests welcome. Mandatory for members.", when: "Oct 11", read: false },
     { id: "n4", icon: "bell", title: "Marcus Session posted an announcement", body: "The November meeting packet is in the Vault. Read the budget amendment before Sunday.", when: "Mon", read: false },
@@ -459,7 +459,7 @@ window.QUORUM_SEED = function () {
     chapter: {
       name: "Tulsa Alumni Chapter", org: "Kappa Alpha Psi Fraternity, Inc. · Tulsa, Oklahoma",
       founded: 1974, district: "Southwestern Province",
-      accent: "#8A1538", plan: 49,
+      accent: "#8A1538",
       titles: "kap"
     },
     cats: CATS,

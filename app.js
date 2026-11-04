@@ -58,6 +58,26 @@
   function initials(m) { return m ? (m.first[0] + m.last[0]).toUpperCase() : "?"; }
   function actives() { return db.members.filter(function (m) { return m.status === "active"; }); }
   function pendings() { return db.members.filter(function (m) { return m.status === "pending"; }); }
+
+  /* The constitution's offices, and what each one reaches. Settings assigns
+     brothers to these; access follows the office, never the person. */
+  var OFFICES = [
+    ["Polemarch", "Everything, including offices, settings and handoff"],
+    ["Vice Polemarch", "Everything except the ledger"],
+    ["Keeper of Exchequer", "Dues, payment requests, budget, ledger"],
+    ["Assistant Keeper of Exchequer", "Dues and roster only"],
+    ["Keeper of Records", "Roster, minutes, votes, the Vault, messages"],
+    ["Strategus", "Attendance, check-in and events"],
+    ["Reporter", "Announcements and the chapter channel"],
+    ["Historian", "The Vault and the chapter record"],
+    ["Chaplain", "App only, no dashboard"],
+    ["Parliamentarian", "Minutes and votes, read only"]
+  ];
+  function holderOf(title) {
+    return db.members.filter(function (m) {
+      return m.status === "active" && (m.roles || []).indexOf(title) > -1;
+    })[0] || null;
+  }
   function isLink(d) { return d.kind === "link"; }
   function docsFor(key, id) { return db.docs.filter(function (d) { return d[key] === id; }); }
 
@@ -996,17 +1016,18 @@
       standard: ["President", "Vice President", "Treasurer", "Recording Secretary", "Sergeant-at-Arms", "Corresponding Secretary", "Historian"],
       alt: ["Basileus", "Vice Basileus", "Keeper of Finance", "Keeper of Records & Seal", "Keeper of Peace"] };
     var cur = sets[db.chapter.titles] || sets.kap;
-    var saved = (14.25 - 2.28) * actives().length;
-    return '<div class="dhead"><div><h1>Settings</h1><p class="sub">Polemarch only</p></div></div>' +
+    var chanCard = '<div class="card"><div class="card-h"><h3>Who can see each channel</h3></div>' +
+      '<div class="card-b flush">' + db.channels.map(function (c) {
+        return '<div class="docrow"><div style="min-width:0;flex:1"><div class="dn"># ' + esc(c.name) + "</div>" +
+          '<div class="dm">' + esc(c.desc || "") + " &middot; " + c.msgs.length + " messages</div></div>" +
+          '<div class="segment sm"><button data-action="chan-vis" data-id="' + c.id + '" data-v="all" class="' +
+          (c.vis === "all" ? "on" : "") + '">All brothers</button>' +
+          '<button data-action="chan-vis" data-id="' + c.id + '" data-v="officers" class="' +
+          (c.vis === "officers" ? "on" : "") + '">Officers only</button></div></div>';
+      }).join("") + "</div></div>";
+
+    return '<div class="dhead"><div><h1>Settings</h1><p class="sub">Polemarch only &middot; what you change here moves real access</p></div></div>' +
       '<div class="two"><div>' +
-      '<div class="card" style="margin-bottom:15px"><div class="card-h"><h3>Plan</h3></div><div class="card-b">' +
-      '<div class="kv"><span class="k">Chapter subscription</span><span class="v num">' + money(db.chapter.plan) + "/month</span></div>" +
-      '<div class="kv"><span class="k">Members included</span><span class="v">Unlimited</span></div>' +
-      '<div class="kv"><span class="k">Bank payment (ACH)</span><span class="v num">0.8%, capped at $5.00</span></div>' +
-      '<div class="kv"><span class="k">Card payment</span><span class="v num">2.9% + $0.30</span></div>' +
-      '<div class="kv"><span class="k">Platform share of dues</span><span class="v" style="color:var(--paid)">None</span></div>' +
-      '<p style="font-size:12px;color:var(--muted);margin-top:11px">A $285 tax paid by bank costs the brother $2.28. On a platform charging a 5% convenience fee it costs $14.25. Across ' +
-      actives().length + " brothers that is " + money0(saved) + " a year that stays in your chapter.</p></div></div>" +
       '<div class="card" style="margin-bottom:15px"><div class="card-h"><h3>Chapter type</h3></div><div class="card-b">' +
       '<p style="font-size:12.5px;color:var(--ink-2);margin-bottom:11px">Quorum runs graduate and undergraduate chapters. The type changes the vocabulary, the dues calendar and which modules appear.</p>' +
       '<div class="segment" style="margin-bottom:11px">' +
@@ -1023,14 +1044,20 @@
       '<button data-action="titles" data-t="standard" class="' + (db.chapter.titles === "standard" ? "on" : "") + '">Generic</button>' +
       '<button data-action="titles" data-t="alt" class="' + (db.chapter.titles === "alt" ? "on" : "") + '">Another org</button></div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' + cur.map(function (t) { return '<span class="chip brand">' + esc(t) + "</span>"; }).join("") + "</div></div></div>" +
-      '<div class="card"><div class="card-h"><h3>Roles and what each one sees</h3></div><div class="card-b flush">' +
-      [["Polemarch", "Everything, including roles, settings and handoff"], ["Vice Polemarch", "Everything except the ledger"],
-       ["Keeper of Exchequer", "Dues, budget, roster, documents"], ["Assistant Keeper of Exchequer", "Dues and roster only"],
-       ["Keeper of Records", "Roster, minutes, documents, messages"], ["Strategus", "Attendance, check-in and ritual"],
-       ["Reporter", "Announcements and the chapter channel"], ["Committee Chair", "Their committee channel, roster and budget line"],
-       ["Brother", "App only, no dashboard"]].map(function (r) {
-        return '<div class="docrow"><div><div class="dn">' + r[0] + '</div><div class="dm">' + r[1] + "</div></div></div>";
-      }).join("") + "</div></div></div><div>" +
+      '<div class="card" style="margin-bottom:15px"><div class="card-h"><h3>Who holds each office</h3>' +
+      '<span class="chip neutral">access follows the office</span></div><div class="card-b flush">' +
+      '<p class="lp" style="padding:11px 14px 6px;margin:0">Change the holder and the access moves with it the same night. ' +
+      "This is the whole handoff: nobody passes on a spreadsheet or a login.</p>" +
+      OFFICES.map(function (r) {
+        var h = holderOf(r[0]);
+        return '<div class="docrow"><div style="min-width:0;flex:1"><div class="dn">' + esc(r[0]) + "</div>" +
+          '<div class="dm">' + esc(r[1]) + "</div></div>" +
+          '<select class="rolepick" data-action="assign-office" data-office="' + esc(r[0]) + '">' +
+          '<option value="">Vacant</option>' +
+          actives().map(function (m) {
+            return '<option value="' + m.id + '"' + (h && h.id === m.id ? " selected" : "") + ">" + esc(full(m)) + "</option>";
+          }).join("") + "</select></div>";
+      }).join("") + "</div></div>" + chanCard + "</div><div>" +
       '<div class="card" style="margin-bottom:15px"><div class="card-h"><h3>Privacy and security</h3></div><div class="card-b">' +
       '<div class="kv"><span class="k">Chapter discovery</span><span class="v" style="color:var(--paid)">Off, invite only</span></div>' +
       '<div class="kv"><span class="k">Member directory</span><span class="v">This chapter only</span></div>' +
@@ -1411,6 +1438,35 @@
   A["close-modal"] = function () { closeModal(); closeSheet(); };
   A["close-sheet"] = closeSheet;
   A["copy"] = function (el) { if (navigator.clipboard) navigator.clipboard.writeText(el.dataset.v).catch(function () {}); el.textContent = "Copied"; setTimeout(function () { el.textContent = "Copy"; }, 1400); };
+  A["assign-office"] = function (el) {
+    var title = el.dataset.office, id = el.value;
+    var was = holderOf(title);
+    if (was && was.id === id) return;
+    if (was) {
+      was.roles = was.roles.filter(function (r) { return r !== title; });
+      if (!was.roles.length) was.roles = ["Member"];
+    }
+    if (id) {
+      var m = member(id);
+      if (!m) return;
+      m.roles = m.roles.filter(function (r) { return r !== "Member"; });
+      m.roles.unshift(title);
+      logA(full(m) + " was seated as " + title + (was ? ", taking over from " + full(was) : ""));
+      toast(full(m) + " is now " + title, was ? full(was) + " loses that access tonight" : "access granted tonight");
+    } else {
+      logA(title + " is vacant");
+      toast(title + " is vacant", was ? full(was) + " loses that access" : "");
+    }
+    render();
+  };
+  A["chan-vis"] = function (el) {
+    var c = chan(el.dataset.id); if (!c) return;
+    c.vis = el.dataset.v;
+    logA("# " + c.name + " is now " + (c.vis === "officers" ? "officers only" : "open to all brothers"));
+    toast("# " + c.name + " is " + (c.vis === "officers" ? "officers only" : "open to all brothers"),
+      c.vis === "officers" ? "it disappears from every member's phone" : "it appears on every member's phone");
+    render();
+  };
   A["accent"] = function (el) { db.chapter.accent = el.dataset.c; document.documentElement.style.setProperty("--brand", el.dataset.c); toast("Chapter accent updated", "brothers see it on next open"); render(); };
   A["titles"] = function (el) { db.chapter.titles = el.dataset.t; toast("Officer titles updated", "across every screen and export"); render(); };
   A["channel"] = function (el) { state.channel = el.dataset.id; renderDash(); };
@@ -1625,7 +1681,6 @@
       '<div class="field"><label>Program area</label><div class="catgrid" id="bCat">' + Object.keys(db.cats).slice(0, 6).map(function (k, i) {
         return '<button type="button" class="catpick' + (i === 0 ? " on" : "") + '" data-c="' + k + '"><i style="background:' + db.cats[k].color + '"></i>' + esc(db.cats[k].label) + "</button>";
       }).join("") + "</div></div>" +
-      '<label class="checkline"><input type="checkbox" id="bInstall" checked><span>Let brothers split this into monthly installments</span></label>' +
       '<label class="checkline"><input type="checkbox" id="bNotify" checked><span>Notify all ' + actives().length + " active brothers and send each one a payment link</span></label>",
       '<button class="btn ghost" data-action="close-modal">Cancel</button><button class="btn" data-action="create-bill">Create bill</button>');
     segWire("bCat");
@@ -1664,7 +1719,7 @@
   A["create-bill"] = function () {
     var b = { id: uid("b"), code: rcode(), title: $("#bTitle").value.trim() || "Chapter assessment",
       amount: Math.max(1, Number($("#bAmount").value) || 0), cadence: $("#bCad").value, due: $("#bDue").value || "2026-12-01",
-      created: isoToday(), plan: $("#bInstall").checked, cat: $("#bCat").querySelector(".on").dataset.c,
+      created: isoToday(), cat: $("#bCat").querySelector(".on").dataset.c,
       eventId: $("#bEvent") ? ($("#bEvent").value || null) : null,
       komId: $("#bKom") ? ($("#bKom").value || null) : null };
     db.bills.push(b);
@@ -1673,7 +1728,7 @@
       (att ? " · attached to " + att.title : "") + (akom ? " · credited to " + akom.name : ""));
     if ($("#bNotify").checked) {
       notify("money", b.title + " is now open", money(b.amount) + " due " + dLabel(b.due) +
-        (att ? " for " + att.title + "." : ".") + " Tap to pay by bank or card." + (b.plan ? " Monthly installments available." : ""));
+        (att ? " for " + att.title + "." : ".") + " Tap to pay by bank or card.");
       toast(actives().length + " brothers notified", money(b.amount) + " each, payment link sent");
     }
     closeModal(); state.view = "dues"; render();
@@ -1760,32 +1815,6 @@
     var b = bill(el.dataset.id), owed = b.amount - paidBy(ME, b.id);
     state.checkout.method = "ach";
     checkoutModal({ modalTitle: "Pay " + b.title, title: b.title, subtitle: "Due " + dLabel(b.due), amount: owed, billId: b.id, kind: "bill", phone: true });
-  };
-  A["plan"] = function (el) {
-    var b = bill(el.dataset.id), owed = b.amount - paidBy(ME, b.id), n = 6, per = Math.round((owed / n) * 100) / 100;
-    var dates = [0, 1, 2, 3, 4, 5].map(function (i) {
-      var d = new Date(TODAY.getTime()); d.setMonth(d.getMonth() + i);
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    });
-    openModal("Split into monthly payments",
-      '<div class="checkout"><div class="co-org">' + esc(db.chapter.name) + '</div><div class="co-t">' + esc(b.title) + "</div>" +
-      '<div class="co-a">' + money(per) + '<span style="font-size:14px;font-family:var(--ui);font-weight:600;color:var(--muted)"> /month</span></div>' +
-      '<p style="font-size:12.5px;color:var(--muted)">' + n + " automatic payments, first one today.</p>" +
-      '<div style="margin-top:14px">' + dates.map(function (d, i) {
-        return '<div class="feeline"><span>Payment ' + (i + 1) + " &middot; " + d + '</span><span class="num">' + money(per + achFee(per)) + " " +
-          (i === 0 ? '<span class="chip due">today</span>' : '<span class="chip neutral">scheduled</span>') + "</span></div>";
-      }).join("") +
-      '<div class="feeline tot"><span>Total you pay</span><span class="num">' + money(owed + achFee(per) * n) + "</span></div></div></div>" +
-      '<div class="banner" style="margin-bottom:0"><b>The chapter still receives ' + money(owed) + " in full.</b> The Keeper of Exchequer sees him as current as long as the plan is on schedule.</div>",
-      '<button class="btn ghost" data-action="close-modal">Cancel</button><button class="btn" data-action="start-plan" data-id="' + b.id + '">Start the plan</button>');
-  };
-  A["start-plan"] = function (el) {
-    var b = bill(el.dataset.id), owed = b.amount - paidBy(ME, b.id), per = Math.round((owed / 6) * 100) / 100;
-    db.payments.push({ id: uid("p"), memberId: ME, billId: b.id, amount: per, method: "ach", date: isoToday() });
-    logA(myName() + " started a 6-month plan on " + b.title + " · " + money(per) + "/month");
-    notify("money", "Payment plan started", money(per) + " a month for 6 months toward " + b.title + ". First payment taken today.");
-    toast("Plan started", money(per) + "/month · counted as current");
-    closeModal(); render();
   };
   A["receipt"] = function (el) {
     var p = find(db.payments, el.dataset.id), b = bill(p.billId);

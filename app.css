@@ -927,3 +927,9 @@ html[data-mode="app"] .appbody:has(.chatroom),
 .modal-foot a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
 .cardacts { display: flex; gap: 6px; align-items: center; }
+
+.rolepick { flex: none; max-width: 190px; padding: 6px 9px; border: 1px solid var(--line-2);
+  border-radius: 8px; background: var(--surface); font-size: 12.5px; }
+.rolepick:hover { border-color: var(--brand); }
+.segment.sm { flex: none; }
+.segment.sm button { padding: 5px 9px; font-size: 11.5px; }
