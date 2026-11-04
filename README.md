@@ -80,10 +80,38 @@ possible differs sharply by platform, so the plan is honest about it.
 | Platform | What can be done | Effort |
 |---|---|---|
 | Android | `FLAG_SECURE` on the window truly blocks screenshots, screen recording and casting. The system shows black. | One line, native |
-| iOS | No sanctioned API blocks capture. The OS can tell you a screenshot **happened** (`userDidTakeScreenshotNotification`) and whether the screen is **being recorded** (`UIScreen.isCaptured`). | Small, native |
+| iOS | No sanctioned API blocks a screenshot. Officially you only get **detection**: `UIApplication.userDidTakeScreenshotNotification` fires after the fact, and `UIScreen.isCaptured` plus `UIScreen.capturedDidChangeNotification` report recording in real time. | Small, native |
 | Web | Nothing. No browser exposes this. The prototype in this repo is a web page, so it cannot be protected at all. | Not possible |
 
-Because iOS cannot block capture, the deterrent has to be social rather than
+#### The one iOS technique that does block, and why it cannot carry the promise
+
+Checked November 2026. There is still no Apple API for this. The technique
+every secure app uses instead is to re-parent the app's window layer into the
+canvas layer of a `UITextField` with `isSecureTextEntry = true`. The secure
+field is public API; relying on the internal layer tree inside it is not.
+
+If the app is built in Expo or React Native this is already packaged:
+`expo-screen-capture`'s `preventScreenCaptureAsync()` does exactly this on
+iOS and sets `FLAG_SECURE` on Android, so one call covers both platforms. Its
+own iOS source is a `SecureWindowCanvas` doing the secure-field reparenting.
+
+Three things to know before promising a chapter anything:
+
+- **It fails open.** The implementation has to reach inside the text field
+  (`textField.layer.sublayers?.first`). If a future iOS changes that internal
+  structure, the guard simply does not attach and the app keeps running with
+  no protection and no error. There are already reports of it not working on
+  some iOS versions. You would not find out; the brothers would.
+- **Review risk is unresolved, not cleared.** No documented Apple rejection
+  for it, and no Apple blessing either. A developer forum thread asking
+  whether it violates Guideline 2.5.1 has no Apple answer.
+- **It does nothing for the web build**, which is what exists today.
+
+So treat the block as a bonus that may silently disappear, and keep the
+watermark as the defense the product's promise actually rests on.
+
+Because iOS cannot be relied on to block capture, the deterrent has to be
+social rather than technical, and that part works everywhere:
 technical, and that part works everywhere:
 
 1. **Watermark sensitive screens.** Overlay the viewer's own name and member
