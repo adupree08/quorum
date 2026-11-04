@@ -1,0 +1,68 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Quorum Chapter Prototype</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,600;100,700;110,700;110,800;112,800&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+
+<!-- ===================== LAUNCHER ===================== -->
+<div id="launcher" class="launcher"></div>
+
+<!-- ===================== MODE BAR ===================== -->
+<div id="modebar" class="modebar"></div>
+
+<!-- ===================== DASHBOARD ===================== -->
+<section class="panel dashpanel" id="dashPanel" aria-label="Chapter dashboard">
+  <p class="panel-label">Chapter dashboard &middot; web &middot; officers</p>
+  <div class="browser">
+    <div class="chrome">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <div class="url"><span class="lock" aria-hidden="true">&#128274;</span> quorum.app/tulsa-alumni</div>
+    </div>
+    <div class="dash">
+      <nav class="side" id="sideNav" aria-label="Dashboard sections"></nav>
+      <div class="dashmain" id="dashMain"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== MEMBER APP ===================== -->
+<section class="panel phonepanel" id="appPanel" aria-label="Member app">
+  <p class="panel-label">Member app &middot; iOS and Android</p>
+  <div class="phone">
+    <div class="statusbar"><span>9:41</span><span class="sbr"><span>&#9679;&#9679;&#9679;&#9679;</span><span>&#9644;&#9644;</span></span></div>
+    <header class="apphead" id="appHead"></header>
+    <div class="appbody" id="appBody"></div>
+    <nav class="tabbar" id="tabBar" aria-label="App tabs"></nav>
+    <div class="sheet" id="appSheet" hidden>
+      <div class="sheet-scrim" data-action="close-sheet"></div>
+      <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+        <div class="sheet-grip"></div>
+        <header class="sheet-head"><h2 id="sheetTitle"></h2>
+          <button class="iconbtn" data-action="close-sheet" aria-label="Close">&times;</button></header>
+        <div class="sheet-body" id="sheetBody"></div>
+        <footer class="sheet-foot" id="sheetFoot"></footer>
+      </div>
+    </div>
+  </div>
+  <div class="ticker" id="ticker" aria-live="polite"></div>
+</section>
+
+<div class="modal-root" id="modalRoot" hidden>
+  <div class="scrim" data-action="close-modal"></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <header class="modal-head">
+      <h2 id="modalTitle"></h2>
+      <button class="iconbtn" data-action="close-modal" aria-label="Close">&times;</button>
+    </header>
+    <div class="modal-body" id="modalBody"></div>
+    <footer class="modal-foot" id="modalFoot"></footer>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script src="app.js"></script>
+
+</body></html>
