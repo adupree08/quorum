@@ -58,6 +58,18 @@
   function initials(m) { return m ? (m.first[0] + m.last[0]).toUpperCase() : "?"; }
   function actives() { return db.members.filter(function (m) { return m.status === "active"; }); }
   function pendings() { return db.members.filter(function (m) { return m.status === "pending"; }); }
+  function isLink(d) { return d.kind === "link"; }
+  function docTag(d) {
+    if (!isLink(d)) return d.name.split(".").pop().toUpperCase();
+    var h = (d.host || "").toLowerCase();
+    return h.indexOf("sheet") > -1 ? "SHEET" : h.indexOf("form") > -1 ? "FORM"
+      : h.indexOf("doc") > -1 ? "DOC" : h.indexOf("drive") > -1 ? "DRIVE"
+      : h.indexOf("calendar") > -1 ? "CAL" : h.indexOf("slide") > -1 ? "SLIDE" : "LINK";
+  }
+  function docMeta(d) {
+    return isLink(d) ? (d.host || "Link") + " &middot; added " + d.updated + " by " + esc(d.by)
+      : d.size + " &middot; updated " + d.updated + " by " + esc(d.by);
+  }
   function myName() { var m = member(ME); return m ? full(m) : "A brother"; }
   function byDate(a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }
   function upcoming() { return db.events.filter(function (e) { return !isPast(e); }).sort(byDate); }
@@ -908,17 +920,23 @@
     var body = ["Governance", "Finance", "Minutes", "Programs", "Executive Board"].map(function (f) {
       var items = db.docs.filter(function (d) { return d.folder === f; });
       if (!items.length) return "";
-      return '<div class="folder">' + esc(f) + (f === "Executive Board" ? ' &middot; <span style="color:var(--late)">restricted</span>' : "") + " &middot; " + items.length + " files</div>" +
+      var nf = items.filter(function (d) { return !isLink(d); }).length, nl = items.length - nf;
+      return '<div class="folder">' + esc(f) + (f === "Executive Board" ? ' &middot; <span style="color:var(--late)">restricted</span>' : "") +
+        " &middot; " + nf + " file" + (nf === 1 ? "" : "s") + (nl ? " &middot; " + nl + " link" + (nl === 1 ? "" : "s") : "") + "</div>" +
         items.map(function (d) {
-          return '<div class="docrow"><div class="dicon"><span>' + esc(d.name.split(".").pop().toUpperCase()) + "</span></div>" +
-            '<div><div class="dn">' + esc(d.name) + '</div><div class="dm">' + d.size + " &middot; updated " + d.updated + " by " + esc(d.by) + " &middot; " + d.opens + " opens</div></div>" +
+          return '<div class="docrow"><div class="dicon' + (isLink(d) ? " link" : "") + '"><span>' + docTag(d) + "</span></div>" +
+            '<div><div class="dn">' + esc(d.name) + (isLink(d) ? '<span class="extchip">external</span>' : "") + '</div>' +
+            '<div class="dm">' + docMeta(d) + " &middot; " + d.opens + " opens</div></div>" +
             '<span class="sp"></span><span class="chip ' + (d.vis === "officers" ? "late" : "neutral") + '">' + (d.vis === "officers" ? "Officers only" : "All members") + "</span>" +
             '<button class="btn ghost sm" data-action="doc-open" data-id="' + d.id + '">Open</button></div>';
         }).join("");
     }).join("");
-    return '<div class="dhead"><div><h1>Vault</h1><p class="sub">' + db.docs.length +
-      " documents &middot; every file carries a visibility rule and an open count &middot; nothing leaves the chapter</p></div>" +
-      '<div class="dactions"><button class="btn" data-action="upload">Add a document</button></div></div>' +
+    var nLink = db.docs.filter(isLink).length;
+    return '<div class="dhead"><div><h1>Vault</h1><p class="sub">' + (db.docs.length - nLink) +
+      " documents and " + nLink + " linked Google files &middot; each one carries a visibility rule and an open count &middot; " +
+      "the links transfer at handoff like everything else</p></div>" +
+      '<div class="dactions"><button class="btn ghost" data-action="add-link">Link a document</button>' +
+      '<button class="btn" data-action="upload">Upload a file</button></div></div>' +
       '<div class="card"><div class="card-b flush">' + body + "</div></div>";
   }
 
@@ -1210,8 +1228,8 @@
         var items = vis.filter(function (d) { return d.folder === f; });
         if (!items.length) return "";
         return '<div class="asec">' + f + '</div><div class="acard flush">' + items.map(function (d) {
-          return '<div class="vrow"><div class="dicon"><span>' + esc(d.name.split(".").pop().toUpperCase()) + "</span></div>" +
-            '<div><div class="vn">' + esc(d.name) + '</div><div class="vm">' + d.size + " &middot; " + d.updated + "</div></div>" +
+          return '<div class="vrow"><div class="dicon' + (isLink(d) ? " link" : "") + '"><span>' + docTag(d) + "</span></div>" +
+            '<div><div class="vn">' + esc(d.name) + '</div><div class="vm">' + (isLink(d) ? esc(d.host || "Link") : d.size) + " &middot; " + d.updated + "</div></div>" +
             '<span class="sp"></span><button class="btn ghost sm" data-action="doc-open" data-id="' + d.id + '">Open</button></div>';
         }).join("") + "</div>";
       }).join("");
@@ -2026,7 +2044,7 @@
   };
 
   A["upload"] = function () {
-    openModal("Add a document",
+    openModal("Upload a file",
       '<div class="field"><label>File</label><input type="text" id="uName" value="Minutes — November Chapter Meeting.pdf"></div>' +
       '<div class="row2"><div class="field"><label>Folder</label><select id="uFolder">' +
       ["Governance", "Finance", "Minutes", "Programs", "Executive Board"].map(function (f) { return "<option" + (f === "Minutes" ? " selected" : "") + ">" + f + "</option>"; }).join("") + "</select></div>" +
@@ -2035,10 +2053,44 @@
       '<div class="banner" style="margin-bottom:0"><b>Documents outlive officers.</b> Everything in the Vault transfers to the next administration with its history intact.</div>',
       '<button class="btn ghost" data-action="close-modal">Cancel</button><button class="btn" data-action="save-doc">Add to Vault</button>');
   };
+  A["add-link"] = function () {
+    openModal("Link a document",
+      '<p style="font-size:12.5px;color:var(--muted);margin-bottom:13px">For the things the chapter already keeps in Google. ' +
+      "Quorum stores the link, the visibility rule and the open count. The file itself stays where it is.</p>" +
+      '<div class="field"><label>What is it</label><input type="text" id="lName" value="Scholarship Applications 2026\u201327"></div>' +
+      '<div class="field"><label>Paste the link</label><input type="text" id="lUrl" placeholder="https://docs.google.com/..." ' +
+      'value="https://docs.google.com/spreadsheets/d/1ScholarshipApps/edit"></div>' +
+      '<div class="row2"><div class="field"><label>Folder</label><select id="lFolder">' +
+      ["Governance", "Finance", "Minutes", "Programs", "Executive Board"].map(function (f) {
+        return "<option" + (f === "Programs" ? " selected" : "") + ">" + f + "</option>";
+      }).join("") + "</select></div>" +
+      '<div class="field"><label>Who can open it</label><select id="lVis"><option value="all">All brothers</option>' +
+      '<option value="officers">Officers only</option></select></div></div>' +
+      '<div class="banner" style="margin-bottom:0"><b>Quorum cannot enforce access inside Google.</b> ' +
+      "Set the sharing on the file itself too, or a brother who is not meant to see it still can.</div>",
+      '<button class="btn ghost" data-action="close-modal">Cancel</button><button class="btn" data-action="save-link">Add to Vault</button>');
+  };
+  A["save-link"] = function () {
+    var name = $("#lName").value.trim() || "Linked document";
+    var url = $("#lUrl").value.trim();
+    if (!/^https?:\/\//i.test(url)) { toast("That does not look like a link", "It needs to start with https://"); return; }
+    var host = /spreadsheets/.test(url) ? "Google Sheets" : /\/forms\//.test(url) ? "Google Forms"
+      : /\/document\//.test(url) ? "Google Docs" : /drive\.google/.test(url) ? "Google Drive"
+      : /calendar\.google/.test(url) ? "Google Calendar" : /presentation/.test(url) ? "Google Slides"
+      : (url.split("/")[2] || "Link").replace(/^www\./, "");
+    var me = member(ROLE_MEMBER[state.role]);
+    db.docs.unshift({ id: uid("l"), kind: "link", name: name, folder: $("#lFolder").value, vis: $("#lVis").value,
+      url: url, host: host, updated: dShort(isoToday()).replace(/ \d+$/, " " + TODAY.getFullYear()),
+      by: full(me), opens: 0 });
+    logA(full(me) + " linked " + name + " (" + host + ") in the Vault");
+    toast("Link added to the Vault", host + " \u00b7 " + ($("#lVis").value === "officers" ? "officers only" : "all brothers"));
+    closeModal(); state.view = "vault"; render();
+  };
   A["save-doc"] = function () {
     var name = $("#uName").value.trim() || "Untitled.pdf", vis = $("#uVis").value, f = $("#uFolder").value;
     var me = member(ROLE_MEMBER[state.role]);
-    db.docs.unshift({ id: uid("d"), name: name, folder: f, vis: vis, size: "128 KB", updated: "Oct 2026", by: full(me), opens: 0 });
+    db.docs.unshift({ id: uid("d"), kind: "file", name: name, folder: f, vis: vis, size: "128 KB",
+      updated: dShort(isoToday()).replace(/ \d+$/, " " + TODAY.getFullYear()), by: full(me), opens: 0 });
     logA(full(me) + " posted " + name + " to " + f);
     if ($("#uNotify").checked && vis === "all") {
       notify("doc", "New document: " + name, full(me) + " added it to " + f + ".");
@@ -2049,6 +2101,25 @@
   A["doc-open"] = function (el) {
     var d = find(db.docs, el.dataset.id); if (!d) return;
     d.opens++;
+    if (isLink(d)) {
+      openModal(d.name,
+        '<div style="display:flex;gap:13px;align-items:center;margin-bottom:15px">' +
+        '<div class="dicon link" style="width:44px;height:54px"><span>' + docTag(d) + "</span></div>" +
+        '<div><div style="font-weight:700">' + esc(d.name) + '</div><div style="font-size:12.5px;color:var(--muted)">' +
+        esc(d.host || "Link") + " &middot; " + d.folder + " &middot; added " + d.updated + "</div></div></div>" +
+        '<div class="linkrow"><code>' + esc(d.url.replace(/^https?:\/\//, "")) + "</code>" +
+        '<button class="btn sm ghost" data-copy="' + esc(d.url) + '">Copy</button></div>' +
+        '<div class="kv" style="margin-top:13px"><span class="k">Added by</span><span class="v">' + esc(d.by) + "</span></div>" +
+        '<div class="kv"><span class="k">Who can open it</span><span class="v">' + (d.vis === "officers" ? "Officers only" : "All active brothers") + "</span></div>" +
+        '<div class="kv"><span class="k">Opens</span><span class="v num">' + d.opens + "</span></div>" +
+        '<div class="banner" style="margin-bottom:0"><b>This one lives in Google, not in Quorum.</b> ' +
+        "Quorum keeps the link, who may open it and who has, so it does not vanish when the line turns over. " +
+        "Whoever owns the Google file still controls access there.</div>",
+        '<button class="btn ghost" data-action="close-modal">Close</button>' +
+        '<a class="btn" href="' + esc(d.url) + '" target="_blank" rel="noopener noreferrer">Open in Google</a>');
+      renderDash();
+      return;
+    }
     openModal(d.name,
       '<div style="display:flex;gap:13px;align-items:center;margin-bottom:15px">' +
       '<div class="dicon" style="width:44px;height:54px"><span>' + esc(d.name.split(".").pop().toUpperCase()) + "</span></div>" +

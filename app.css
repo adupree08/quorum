@@ -917,3 +917,11 @@ html[data-mode="app"] .appbody:has(.chatroom),
 .ah-back:hover { background: var(--surface-3); }
 .ah-x { min-width: 0; flex: 1; }
 .ah-x .ah-t, .ah-x .ah-s { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------------- linked (external) documents in the Vault ---------------- */
+.dicon.link { background: var(--brand-soft); border-color: var(--brand); }
+.dicon.link span { color: var(--brand); }
+.extchip { display: inline-block; margin-left: 7px; font-family: var(--mono); font-size: 9px;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--muted);
+  border: 1px solid var(--line-2); border-radius: 99px; padding: 1px 6px; vertical-align: 1px; }
+.modal-foot a.btn { text-decoration: none; display: inline-flex; align-items: center; }

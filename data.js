@@ -384,7 +384,27 @@ window.QUORUM_SEED = function () {
       audience: "6 selected brothers", pushed: true, created: "2026-10-12", code: "jkt165", collected: 495, payers: 3 }
   ];
 
+  /* A chapter does not abandon Google the day it adopts a platform. The
+     budget lives in Sheets, the sign-up is a Form, the province folder is on
+     Drive. Those links normally live in one officer's head and die at
+     handoff, so the Vault holds them next to the files, under the same
+     visibility rule. */
   var docs = [
+    { id: "l1", kind: "link", name: "Chapter Budget Worksheet 2026\u201327", folder: "Finance", vis: "officers",
+      url: "https://docs.google.com/spreadsheets/d/1kQ7x9ChapterBudget/edit", host: "Google Sheets",
+      updated: "Oct 2026", by: "Carlton Whitfield", opens: 34 },
+    { id: "l2", kind: "link", name: "Guide Right Mentor Sign-up", folder: "Programs", vis: "all",
+      url: "https://docs.google.com/forms/d/e/1FAIpQLGuideRight/viewform", host: "Google Forms",
+      updated: "Oct 2026", by: "Dominic Falls", opens: 61 },
+    { id: "l3", kind: "link", name: "Tulsa Alumni \u2014 Shared Drive", folder: "Governance", vis: "all",
+      url: "https://drive.google.com/drive/folders/0ATulsaAlumniChapter", host: "Google Drive",
+      updated: "Sep 2026", by: "Marcus Session", opens: 88 },
+    { id: "l4", kind: "link", name: "Founders Day Run of Show", folder: "Programs", vis: "all",
+      url: "https://docs.google.com/document/d/1FoundersDayRunOfShow/edit", host: "Google Docs",
+      updated: "Oct 2026", by: "Reginald Bankston", opens: 17 },
+    { id: "l5", kind: "link", name: "Province Reporting Calendar", folder: "Governance", vis: "all",
+      url: "https://calendar.google.com/calendar/u/0?cid=southwesternprovince", host: "Google Calendar",
+      updated: "Aug 2026", by: "Immanuel Oyelaran", opens: 12 },
     { id: "d1", name: "Chapter Bylaws (amended 2025).pdf", folder: "Governance", vis: "all", size: "412 KB", updated: "Mar 2026", by: "Immanuel Oyelaran", opens: 41 },
     { id: "d2", name: "Standing Rules 2026–27.pdf", folder: "Governance", vis: "all", size: "188 KB", updated: "Aug 2026", by: "Immanuel Oyelaran", opens: 33 },
     { id: "d3", name: "Robert's Rules — Quick Card.pdf", folder: "Governance", vis: "all", size: "64 KB", updated: "Aug 2026", by: "Nathaniel Caldwell", opens: 52 },
