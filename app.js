@@ -309,6 +309,15 @@
     $("#sideNav").innerHTML = html;
   }
 
+  /* Two different doors, and brothers ask why both exist. An invitation is for
+     a man the chapter already knows. The queue is for a transfer in, a
+     reactivation or an intake, which the chapter still has to vote on. */
+  var INVITES = [
+    ["Wendell Pryor", "Transfer from Beta Kappa, Wichita", "3 days ago", false],
+    ["Anthony Stovall", "Reclamation, initiated 2009", "6 days ago", false],
+    ["Craig Dunlap", "Vouched by Terrance Greenlee", "16 days ago", true]
+  ];
+
   function viewHome() {
     var pend = pendings(), late = pastDue(), out = outstanding(), coll = collected();
     var att = Math.round(chapterAttRate() * 100), canMoney = can("dues");
@@ -386,8 +395,19 @@
       '<p class="sub">' + TODAY.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) + ' &middot; ' + actives().length + " active brothers &middot; " + officers().length +
       " officers &middot; " + db.committees.length + " standing committees &middot; chartered " + db.chapter.founded + "</p></div></div>" +
       qa + '<div class="queue">' + q + "</div>" +
-      '<div class="two3"><div class="sec"><h2>Membership queue</h2><div class="card"><div class="card-b flush"><div class="tw"><table>' +
-      '<thead><tr><th>Candidate</th><th class="r">Waiting</th><th class="r"></th></tr></thead><tbody>' + pendRows + "</tbody></table></div></div></div>" +
+      '<div class="two3"><div class="sec"><h2>New brothers waiting on the chapter</h2>' +
+      '<div class="card"><div class="card-h"><h3>' + pend.length + ' to vote on</h3>' +
+      '<span class="chip neutral">transfers, reactivations and intake</span></div>' +
+      '<div class="card-b flush"><div class="tw"><table>' +
+      '<thead><tr><th>Brother</th><th class="r">Waiting</th><th class="r"></th></tr></thead><tbody>' + pendRows + "</tbody></table></div></div></div>" +
+      '<h2 style="margin-top:20px">Invitations out</h2><div class="card"><div class="card-h"><h3>' + INVITES.length +
+      ' sent, not yet used</h3><button class="btn ghost sm" data-action="invite">Invite a brother</button></div>' +
+      '<div class="card-b flush">' + INVITES.map(function (iv) {
+        return '<div class="docrow"><div style="min-width:0;flex:1"><div class="dn">' + esc(iv[0]) + "</div>" +
+          '<div class="dm">' + esc(iv[1]) + " &middot; sent " + esc(iv[2]) + "</div></div>" +
+          '<span class="chip ' + (iv[3] ? "late" : "due") + '">' + (iv[3] ? "Expired" : "Open") + "</span>" +
+          '<button class="btn ghost sm" data-action="resend-invite" data-n="' + esc(iv[0]) + '">Resend</button></div>';
+      }).join("") + "</div></div>" +
       '<h2 style="margin-top:20px">Coming up</h2><div class="card"><div class="card-b flush">' + evRows + "</div></div></div>" +
       '<div class="sec"><h2>Open tasks</h2><div class="card"><div class="card-h"><h3>' + openTasks.length +
       ' across ' + db.committees.filter(function (k) { return (k.tasks || []).some(function (t) { return !t.done; }); }).length +
@@ -1016,6 +1036,19 @@
       standard: ["President", "Vice President", "Treasurer", "Recording Secretary", "Sergeant-at-Arms", "Corresponding Secretary", "Historian"],
       alt: ["Basileus", "Vice Basileus", "Keeper of Finance", "Keeper of Records & Seal", "Keeper of Peace"] };
     var cur = sets[db.chapter.titles] || sets.kap;
+    var payCard = '<div class="card" style="margin-bottom:15px"><div class="card-h"><h3>Where the money lands</h3>' +
+      '<span class="chip paid">Connected</span></div><div class="card-b">' +
+      '<div class="kv"><span class="k">Payouts go to</span><span class="v">Tulsa Alumni Chapter &middot; ****4471</span></div>' +
+      '<div class="kv"><span class="k">Processor</span><span class="v">Stripe, in the chapter\u2019s own name</span></div>' +
+      '<div class="kv"><span class="k">Quorum ever holds your money</span><span class="v" style="color:var(--paid)">Never</span></div>' +
+      '<div class="kv"><span class="k">Payout schedule</span><span class="v">Daily, 2 business days</span></div>' +
+      '<div class="kv"><span class="k">Who set this up</span><span class="v">Darius Hobbs &middot; Keeper of Exchequer</span></div>' +
+      '<p style="font-size:12px;color:var(--muted);margin-top:11px">The Keeper of Exchequer connects the chapter\u2019s bank once, ' +
+      "on Stripe\u2019s own form, and every payment link and event QR works from then on. Money moves from the brother to the " +
+      "chapter account. It never passes through us, so we could not take a cut even if we wanted one.</p>" +
+      '<button class="btn ghost sm" data-action="stripe-info" style="margin-top:4px">What the chapter has to provide</button>' +
+      "</div></div>";
+
     var chanCard = '<div class="card"><div class="card-h"><h3>Who can see each channel</h3></div>' +
       '<div class="card-b flush">' + db.channels.map(function (c) {
         return '<div class="docrow"><div style="min-width:0;flex:1"><div class="dn"># ' + esc(c.name) + "</div>" +
@@ -1057,7 +1090,7 @@
           actives().map(function (m) {
             return '<option value="' + m.id + '"' + (h && h.id === m.id ? " selected" : "") + ">" + esc(full(m)) + "</option>";
           }).join("") + "</select></div>";
-      }).join("") + "</div></div>" + chanCard + "</div><div>" +
+      }).join("") + "</div></div>" + chanCard + "</div><div>" + payCard +
       '<div class="card" style="margin-bottom:15px"><div class="card-h"><h3>Privacy and security</h3></div><div class="card-b">' +
       '<div class="kv"><span class="k">Chapter discovery</span><span class="v" style="color:var(--paid)">Off, invite only</span></div>' +
       '<div class="kv"><span class="k">Member directory</span><span class="v">This chapter only</span></div>' +
@@ -1458,6 +1491,19 @@
       toast(title + " is vacant", was ? full(was) + " loses that access" : "");
     }
     render();
+  };
+  A["stripe-info"] = function () {
+    openModal("Connecting the chapter's bank",
+      '<p style="font-size:12.5px;color:var(--ink-2);margin-bottom:13px">Once, by the Keeper of Exchequer, on Stripe\u2019s own ' +
+      "secure form. About ten minutes. Quorum never sees any of it.</p>" +
+      '<div class="kv"><span class="k">The chapter\u2019s EIN</span><span class="v">From your 990 filing</span></div>' +
+      '<div class="kv"><span class="k">Chapter bank account</span><span class="v">Routing and account number</span></div>' +
+      '<div class="kv"><span class="k">One officer to verify</span><span class="v">Name, date of birth, address</span></div>' +
+      '<div class="kv"><span class="k">Nonprofit status</span><span class="v">If you have a 501(c)</span></div>' +
+      '<div class="banner" style="margin-bottom:0"><b>The officer verifying is not personally liable.</b> ' +
+      "Stripe requires a named human on every account for federal rules. The money belongs to the chapter and lands in the " +
+      "chapter\u2019s account. When the line turns over, the next Exchequer is added and the old one is removed.</div>",
+      '<button class="btn ghost" data-action="close-modal">Close</button>');
   };
   A["chan-vis"] = function (el) {
     var c = chan(el.dataset.id); if (!c) return;
@@ -1892,6 +1938,14 @@
   };
   A["share-event"] = function (el) {
     var e = ev(el.dataset.id), url = "https://quorum.app/e/" + e.code, paid = e.price > 0;
+    /* nobody should have to remember to file the ticket code */
+    if (!db.docs.some(function (d) { return d.eventId === e.id && d.kind === "link" && d.auto; })) {
+      db.docs.unshift({ id: uid("l"), kind: "link", auto: true,
+        name: (paid ? "Ticket link and QR" : "Check-in QR") + " \u2014 " + e.title,
+        folder: "Programs", vis: "all", url: url, host: "Quorum event page",
+        updated: dShort(isoToday()).replace(/ \d+$/, " " + TODAY.getFullYear()),
+        by: full(member(ROLE_MEMBER[state.role])), opens: 0, eventId: e.id });
+    }
     openModal((paid ? "Ticket link · " : "Check-in QR · ") + e.title,
       linkBlock(url, paid ? "Ticket page" : "Check-in page") + qrBlock(url, url.replace("https://", "")) +
       '<div class="banner">' + (paid
@@ -2249,6 +2303,9 @@
     notify("cake", "Happy birthday, Brother " + m.last, "The chapter sends its best on " + bdayLabel(m.bday) + ".");
     toast("Birthday note sent to " + full(m), "and posted in the chapter channel");
     render();
+  };
+  A["resend-invite"] = function (el) {
+    toast("Invitation resent to " + el.dataset.n, "new single-use link, good for 7 days");
   };
   A["invite"] = function () {
     var url = "https://quorum.app/join/" + rcode();
