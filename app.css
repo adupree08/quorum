@@ -925,3 +925,5 @@ html[data-mode="app"] .appbody:has(.chatroom),
   letter-spacing: .07em; text-transform: uppercase; color: var(--muted);
   border: 1px solid var(--line-2); border-radius: 99px; padding: 1px 6px; vertical-align: 1px; }
 .modal-foot a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+.cardacts { display: flex; gap: 6px; align-items: center; }

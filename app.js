@@ -59,6 +59,29 @@
   function actives() { return db.members.filter(function (m) { return m.status === "active"; }); }
   function pendings() { return db.members.filter(function (m) { return m.status === "pending"; }); }
   function isLink(d) { return d.kind === "link"; }
+  function docsFor(key, id) { return db.docs.filter(function (d) { return d[key] === id; }); }
+
+  /* The same documents block on a committee page and an event page. Whatever is
+     added here still lands in the Vault, it is just tagged so it also shows
+     where the work actually happens. */
+  function attachedDocs(label, key, id, folder) {
+    var items = docsFor(key, id);
+    var attr = (key === "komId" ? ' data-kom="' : ' data-ev="') + id + '" data-folder="' + folder + '"';
+    var rows = items.length ? items.map(function (d) {
+      return '<div class="docrow"><div class="dicon' + (isLink(d) ? " link" : "") + '"><span>' + docTag(d) + "</span></div>" +
+        '<div><div class="dn">' + esc(d.name) + (isLink(d) ? '<span class="extchip">external</span>' : "") + "</div>" +
+        '<div class="dm">' + docMeta(d) + "</div></div>" +
+        '<span class="sp"></span><span class="chip ' + (d.vis === "officers" ? "late" : "neutral") + '">' +
+        (d.vis === "officers" ? "Officers only" : "All members") + "</span>" +
+        '<button class="btn ghost sm" data-action="doc-open" data-id="' + d.id + '">Open</button></div>';
+    }).join("") : '<div class="empty">Nothing attached yet. Anything you add here also lands in the Vault.</div>';
+
+    return '<div class="sec"><h2>' + label + '</h2><div class="card"><div class="card-h"><h3>' +
+      items.length + " in the Vault</h3>" +
+      '<div class="cardacts"><button class="btn ghost sm" data-action="add-link"' + attr + '>Link</button>' +
+      '<button class="btn sm" data-action="upload"' + attr + '>Upload</button></div></div>' +
+      '<div class="card-b flush">' + rows + "</div></div></div>";
+  }
   function docTag(d) {
     if (!isLink(d)) return d.name.split(".").pop().toUpperCase();
     var h = (d.host || "").toLowerCase();
@@ -847,6 +870,7 @@
           }).join("") + "</div></div></div>";
       })() +
       (e.price ? '<div class="sec"><h2>Tickets</h2><div class="card"><div class="card-b flush">' + ticketRows + "</div></div></div>" : "") +
+      attachedDocs("Event documents", "eventId", e.id, "Programs") +
       '<div class="two"><div>' + people(notYet, "Has not answered", "neutral", true) + "</div>" +
       "<div>" + people(going, "Going", "paid", false) + "</div></div>";
   }
@@ -2043,18 +2067,24 @@
     closeModal(); render();
   };
 
-  A["upload"] = function () {
-    openModal("Upload a file",
+  A["upload"] = function (el) {
+    var ctx = docCtx(el);
+    openModal("Upload a file" + ctx.suffix,
       '<div class="field"><label>File</label><input type="text" id="uName" value="Minutes — November Chapter Meeting.pdf"></div>' +
       '<div class="row2"><div class="field"><label>Folder</label><select id="uFolder">' +
-      ["Governance", "Finance", "Minutes", "Programs", "Executive Board"].map(function (f) { return "<option" + (f === "Minutes" ? " selected" : "") + ">" + f + "</option>"; }).join("") + "</select></div>" +
+      ["Governance", "Finance", "Minutes", "Programs", "Executive Board"].map(function (f) {
+        return "<option" + (f === (ctx.folder || "Minutes") ? " selected" : "") + ">" + f + "</option>";
+      }).join("") + "</select></div>" +
       '<div class="field"><label>Who can open it</label><select id="uVis"><option value="all">All brothers</option><option value="officers">Officers only</option></select></div></div>' +
       '<label class="checkline"><input type="checkbox" id="uNotify" checked><span>Notify the chapter that a new document is posted</span></label>' +
-      '<div class="banner" style="margin-bottom:0"><b>Documents outlive officers.</b> Everything in the Vault transfers to the next administration with its history intact.</div>',
-      '<button class="btn ghost" data-action="close-modal">Cancel</button><button class="btn" data-action="save-doc">Add to Vault</button>');
+      '<div class="banner" style="margin-bottom:0"><b>Documents outlive officers.</b> ' +
+      (ctx.note || "Everything in the Vault transfers to the next administration with its history intact.") + "</div>",
+      '<button class="btn ghost" data-action="close-modal">Cancel</button>' +
+      '<button class="btn" data-action="save-doc" data-kom="' + (ctx.komId || "") + '" data-ev="' + (ctx.eventId || "") + '">Add to Vault</button>');
   };
-  A["add-link"] = function () {
-    openModal("Link a document",
+  A["add-link"] = function (el) {
+    var ctx = docCtx(el);
+    openModal("Link a document" + ctx.suffix,
       '<p style="font-size:12.5px;color:var(--muted);margin-bottom:13px">For the things the chapter already keeps in Google. ' +
       "Quorum stores the link, the visibility rule and the open count. The file itself stays where it is.</p>" +
       '<div class="field"><label>What is it</label><input type="text" id="lName" value="Scholarship Applications 2026\u201327"></div>' +
@@ -2062,15 +2092,16 @@
       'value="https://docs.google.com/spreadsheets/d/1ScholarshipApps/edit"></div>' +
       '<div class="row2"><div class="field"><label>Folder</label><select id="lFolder">' +
       ["Governance", "Finance", "Minutes", "Programs", "Executive Board"].map(function (f) {
-        return "<option" + (f === "Programs" ? " selected" : "") + ">" + f + "</option>";
+        return "<option" + (f === (ctx.folder || "Programs") ? " selected" : "") + ">" + f + "</option>";
       }).join("") + "</select></div>" +
       '<div class="field"><label>Who can open it</label><select id="lVis"><option value="all">All brothers</option>' +
       '<option value="officers">Officers only</option></select></div></div>' +
       '<div class="banner" style="margin-bottom:0"><b>Quorum cannot enforce access inside Google.</b> ' +
       "Set the sharing on the file itself too, or a brother who is not meant to see it still can.</div>",
-      '<button class="btn ghost" data-action="close-modal">Cancel</button><button class="btn" data-action="save-link">Add to Vault</button>');
+      '<button class="btn ghost" data-action="close-modal">Cancel</button>' +
+      '<button class="btn" data-action="save-link" data-kom="' + (ctx.komId || "") + '" data-ev="' + (ctx.eventId || "") + '">Add to Vault</button>');
   };
-  A["save-link"] = function () {
+  A["save-link"] = function (el) {
     var name = $("#lName").value.trim() || "Linked document";
     var url = $("#lUrl").value.trim();
     if (!/^https?:\/\//i.test(url)) { toast("That does not look like a link", "It needs to start with https://"); return; }
@@ -2081,16 +2112,30 @@
     var me = member(ROLE_MEMBER[state.role]);
     db.docs.unshift({ id: uid("l"), kind: "link", name: name, folder: $("#lFolder").value, vis: $("#lVis").value,
       url: url, host: host, updated: dShort(isoToday()).replace(/ \d+$/, " " + TODAY.getFullYear()),
-      by: full(me), opens: 0 });
+      by: full(me), opens: 0,
+      komId: (el && el.dataset.kom) || null, eventId: (el && el.dataset.ev) || null });
     logA(full(me) + " linked " + name + " (" + host + ") in the Vault");
     toast("Link added to the Vault", host + " \u00b7 " + ($("#lVis").value === "officers" ? "officers only" : "all brothers"));
     closeModal(); state.view = "vault"; render();
   };
-  A["save-doc"] = function () {
+  /* Where an upload was started from, so the record can be tagged to it. */
+  function docCtx(el) {
+    var kom = el && el.dataset ? el.dataset.kom : null;
+    var evi = el && el.dataset ? el.dataset.ev : null;
+    var folder = (el && el.dataset && el.dataset.folder) || null;
+    var label = kom ? (komOf(kom) || {}).name : evi ? (ev(evi) || {}).title : null;
+    return { komId: kom || null, eventId: evi || null, folder: folder,
+      suffix: label ? " \u00b7 " + label : "",
+      note: label ? "It goes to the Vault and shows on " + label + "." : null };
+  }
+  function komOf(id) { return find(db.committees, id); }
+
+  A["save-doc"] = function (el) {
     var name = $("#uName").value.trim() || "Untitled.pdf", vis = $("#uVis").value, f = $("#uFolder").value;
     var me = member(ROLE_MEMBER[state.role]);
     db.docs.unshift({ id: uid("d"), kind: "file", name: name, folder: f, vis: vis, size: "128 KB",
-      updated: dShort(isoToday()).replace(/ \d+$/, " " + TODAY.getFullYear()), by: full(me), opens: 0 });
+      updated: dShort(isoToday()).replace(/ \d+$/, " " + TODAY.getFullYear()), by: full(me), opens: 0,
+      komId: (el && el.dataset.kom) || null, eventId: (el && el.dataset.ev) || null });
     logA(full(me) + " posted " + name + " to " + f);
     if ($("#uNotify").checked && vis === "all") {
       notify("doc", "New document: " + name, full(me) + " added it to " + f + ".");
@@ -2853,7 +2898,8 @@
       '<div class="sec"><h2>Budget lines</h2><div class="card"><div class="card-b flush">' + lines + "</div></div></div>" +
       '<div class="sec"><h2>Meeting log</h2><div class="card"><div class="card-h"><h3>' + k.meetings.length +
       ' meetings</h3><button class="btn ghost sm" data-action="ctee-meeting-add" data-k="' + k.id + '">Log a meeting</button></div>' +
-      '<div class="card-b flush">' + meets + "</div></div></div></div></div>";
+      '<div class="card-b flush">' + meets + "</div></div></div>" +
+      attachedDocs("Committee documents", "komId", k.id, "Programs") + "</div></div>";
   }
 
   /* ================= printable report ================= */
