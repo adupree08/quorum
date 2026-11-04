@@ -88,16 +88,24 @@ technical, and that part works everywhere:
 
 1. **Watermark sensitive screens.** Overlay the viewer's own name and member
    number, low contrast, across chat and any document in the Vault. A leaked
-   screenshot then identifies who leaked it. This is the single highest-value
-   piece and the one GroupMe cannot offer.
-2. **Blur on backgrounding.** Cover the window when the app leaves the
-   foreground, so the app switcher and any recording started later capture
-   nothing readable.
-3. **Log and notify.** Record a screenshot event against the member and the
+   screenshot then identifies who leaked it. On iPhone this is the only thing
+   doing real work, and it is the one GroupMe cannot offer.
+2. **Log and notify.** Record a screenshot event against the member and the
    room. Optionally tell the room: "a brother screenshotted this channel."
    Chapters police themselves once the act is visible.
-4. **Hide capture from recording.** On iOS, when `UIScreen.isCaptured` is true,
-   swap sensitive views for a placeholder.
+3. **Hide content while recording.** On iOS, `UIScreen.isCaptured` is readable
+   in real time, so sensitive views can be swapped for a placeholder for as
+   long as a recording is running. Unlike a screenshot, this one can be caught
+   before anything is captured.
+4. **Blur on backgrounding.** Covers the window when the app leaves the
+   foreground, so the app-switcher thumbnail shows nothing readable to someone
+   holding the phone.
+
+   **This is not a screenshot defense and must not be sold as one.** It fires
+   on app lifecycle events, so it never runs during a screenshot, which is
+   taken while the app is still in front. It is lifecycle code rather than
+   anything hardware-specific, so it behaves identically on every phone. On
+   Android it is redundant: `FLAG_SECURE` already blanks the recents thumbnail.
 
 There is a widely used iOS trick that does block capture: hosting content
 inside a `UITextField` layer with `isSecureTextEntry` set. It works today, it
