@@ -112,7 +112,6 @@ watermark as the defense the product's promise actually rests on.
 
 Because iOS cannot be relied on to block capture, the deterrent has to be
 social rather than technical, and that part works everywhere:
-technical, and that part works everywhere:
 
 1. **Watermark sensitive screens.** Overlay the viewer's own name and member
    number, low contrast, across chat and any document in the Vault. A leaked
