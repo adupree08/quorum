@@ -265,10 +265,6 @@
         "</td></tr>";
     }).join("") : '<tr><td colspan="3"><div class="empty">Nobody is waiting. The queue is clear.</div></td></tr>';
 
-    var acts = db.activity.slice(0, 7).map(function (a) {
-      return '<div class="act"><span class="ad"></span><span>' + esc(a.t) + '<div class="at">' + esc(a.at) + "</div></span></div>";
-    }).join("");
-
     var evRows = upcoming().slice(0, 4).map(function (e) {
       var parts = dShort(e.date).split(" ");
       return '<div class="docrow click" role="button" tabindex="0" data-action="open-event" data-id="' + e.id + '">' +
@@ -329,7 +325,6 @@
       ' across ' + db.committees.filter(function (k) { return (k.tasks || []).some(function (t) { return !t.done; }); }).length +
       ' committees</h3><button class="btn ghost sm" data-action="view" data-view="committees">All committees</button></div>' +
       '<div class="card-b flush">' + taskRows + "</div></div>" +
-      '<h2 style="margin-top:20px">Chapter activity</h2><div class="card"><div class="card-b flush">' + acts + "</div></div>" +
       '<h2 style="margin-top:20px">Birthdays this month</h2><div class="card"><div class="card-b flush">' + bdayRows + "</div></div></div></div>";
   }
 
