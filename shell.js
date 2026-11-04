@@ -7,7 +7,7 @@
   var KEY_MODE = "quorum.mode.v1";
   /* The QR has to send phones to a plain web page. A claude.ai link deep-links
      into the Claude app on iOS, which is not the demo. */
-  var SHARE_URL = "https://adupree08.github.io/quorum/";
+  var SHARE_URL = "https://quorum-chapter.vercel.app/";
   var CID = Math.random().toString(36).slice(2);
   /* Served as plain static files there is no shared record, so the launcher
      must not promise the room that their taps land on the dashboard. */
