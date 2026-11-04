@@ -68,3 +68,47 @@ copy. Everything else works identically.
 Fees are modelled on Stripe and shown on every checkout screen: bank 0.8% capped at $5.00,
 card 2.9% + $0.30. The chapter subscription is a flat $49 a month and no percentage of
 anything the chapter collects.
+
+## Not built yet
+
+### Screenshot and screen-recording restriction
+
+A chapter's reason for leaving the group chat is that screenshots leak. Quorum
+should make leaking harder, and make a leak traceable. What is actually
+possible differs sharply by platform, so the plan is honest about it.
+
+| Platform | What can be done | Effort |
+|---|---|---|
+| Android | `FLAG_SECURE` on the window truly blocks screenshots, screen recording and casting. The system shows black. | One line, native |
+| iOS | No sanctioned API blocks capture. The OS can tell you a screenshot **happened** (`userDidTakeScreenshotNotification`) and whether the screen is **being recorded** (`UIScreen.isCaptured`). | Small, native |
+| Web | Nothing. No browser exposes this. The prototype in this repo is a web page, so it cannot be protected at all. | Not possible |
+
+Because iOS cannot block capture, the deterrent has to be social rather than
+technical, and that part works everywhere:
+
+1. **Watermark sensitive screens.** Overlay the viewer's own name and member
+   number, low contrast, across chat and any document in the Vault. A leaked
+   screenshot then identifies who leaked it. This is the single highest-value
+   piece and the one GroupMe cannot offer.
+2. **Blur on backgrounding.** Cover the window when the app leaves the
+   foreground, so the app switcher and any recording started later capture
+   nothing readable.
+3. **Log and notify.** Record a screenshot event against the member and the
+   room. Optionally tell the room: "a brother screenshotted this channel."
+   Chapters police themselves once the act is visible.
+4. **Hide capture from recording.** On iOS, when `UIScreen.isCaptured` is true,
+   swap sensitive views for a placeholder.
+
+There is a widely used iOS trick that does block capture: hosting content
+inside a `UITextField` layer with `isSecureTextEntry` set. It works today, it
+is not sanctioned by Apple, and it has broken across OS releases. Treat it as
+optional hardening for the Vault only, never as the thing the promise rests on.
+
+**What to tell a chapter.** Not "nobody can screenshot this." The honest and
+stronger line is: on Android it is blocked, on iPhone it is watermarked with
+the brother's name and logged, so a leak has a return address. That also keeps
+faith with the posture elsewhere in this product, which is private rather than
+invisible, since national HQ oversight and the Stop Campus Hazing Act mean a
+chapter's records cannot be beyond reach of the organization itself.
+
+This requires a native app. It is not buildable in the current web prototype.
