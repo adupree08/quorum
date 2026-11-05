@@ -36,7 +36,7 @@
   var state = {
     role: "president", view: "home", tab: "home", search: "", filter: "all",
     selected: {}, channel: "c1", appChannel: null, focusSearch: false,
-    checkout: { method: "ach", qty: 1 }, profileTab: "profile", moreView: null, ctx: null, komId: null, reqKind: "chapter", sort: "name", sortDir: 1, attEvent: null, evId: null, budgetEdit: false, goalEdit: null, calYM: "2026-10"
+    checkout: { method: "ach", qty: 1 }, profileTab: "profile", moreView: null, ctx: null, komId: null, reqKind: "chapter", sort: "name", sortDir: 1, attEvent: null, evId: null, budgetEdit: false, goalEdit: null, calYM: "2026-10", evView: "cal"
   };
 
   /* ---------------------------------------------------------- helpers */
@@ -180,7 +180,7 @@
     return (m && m.committees ? m.committees : []).map(function (c) { return { k: kom(c.id), role: c.role }; }).filter(function (x) { return x.k; });
   }
   function unread() { return db.notes.filter(function (n) { return !n.read; }).length; }
-  function bdaysThisMonth() { return actives().filter(function (m) { return bdayMonth(m.bday) === 10; }).sort(function (a, b) { return a.bday.localeCompare(b.bday); }); }
+  function bdaysThisMonth() { var mm = TODAY.getMonth() + 1; return actives().filter(function (m) { return bdayMonth(m.bday) === mm; }).sort(function (a, b) { return a.bday.localeCompare(b.bday); }); }
 
   /* ------------------------------------------------------------- qr */
   function qrMarkup(text) {
@@ -230,7 +230,6 @@
     { id: "requests", label: "Payment Requests", roles: ["president", "treasurer"] },
     { id: "budget", label: "Budget", roles: ["president", "treasurer", "chair"] },
     { g: "Program" },
-    { id: "calendar", label: "Calendar", roles: ["president", "vicepresident", "treasurer", "secretary", "strategus", "chair"] },
     { id: "events", label: "Events", roles: ["president", "vicepresident", "treasurer", "secretary", "strategus", "chair"] },
     { id: "service", label: "Service Hours", roles: ["president", "vicepresident", "secretary", "strategus", "chair"] },
     { g: "Records" },
@@ -241,7 +240,37 @@
     { g: "Admin" },
     { id: "settings", label: "Settings", roles: ["president"] }
   ];
-  function can(v) { for (var i = 0; i < NAV.length; i++) if (NAV[i].id === v) return NAV[i].roles.indexOf(state.role) > -1; return false; }
+  /* What each office may reach. Settings edits this, and the left navigation is
+     drawn straight from it, so ticking a box here changes the office tonight. */
+  var AREAS = [
+    ["members", "Roster"], ["committees", "Committees"], ["attendance", "Attendance"],
+    ["dues", "Dues"], ["requests", "Requests"], ["budget", "Budget"],
+    ["events", "Events"], ["service", "Service"], ["minutes", "Minutes"],
+    ["vault", "Vault"], ["messages", "Messages"], ["settings", "Settings"]
+  ];
+  var PRIV = {
+    "Polemarch": ["members", "committees", "attendance", "dues", "requests", "budget", "events", "service", "minutes", "vault", "messages", "settings"],
+    "Vice Polemarch": ["members", "committees", "attendance", "events", "service", "minutes", "vault", "messages"],
+    "Keeper of Exchequer": ["members", "committees", "dues", "requests", "budget", "events", "vault", "messages"],
+    "Assistant Keeper of Exchequer": ["members", "dues", "requests", "vault", "messages"],
+    "Keeper of Records": ["members", "committees", "attendance", "events", "service", "minutes", "vault", "messages"],
+    "Strategus": ["members", "attendance", "events", "service", "vault", "messages"],
+    "Reporter": ["members", "events", "vault", "messages"],
+    "Historian": ["members", "events", "minutes", "vault", "messages"],
+    "Chaplain": [],
+    "Parliamentarian": ["minutes", "vault", "messages"]
+  };
+  var ROLE_OFFICE = {
+    president: "Polemarch", vicepresident: "Vice Polemarch", treasurer: "Keeper of Exchequer",
+    secretary: "Keeper of Records", strategus: "Strategus", chair: null, member: null
+  };
+  function can(v) {
+    if (v === "home") return state.role !== "member";
+    var office = ROLE_OFFICE[state.role];
+    if (office && PRIV[office]) return PRIV[office].indexOf(v) > -1;
+    for (var i = 0; i < NAV.length; i++) if (NAV[i].id === v) return NAV[i].roles.indexOf(state.role) > -1;
+    return false;
+  }
 
   /* An office is not a menu. These are the acts a chapter constitution reserves,
      so the dispatcher refuses them too, not just the sidebar. Anything absent
@@ -764,7 +793,7 @@
     return out;
   }
 
-  function viewCalendar() {
+  function calendarBody() {
     var p = ymParts(state.calYM), y = p.y, m = p.m;
     var first = new Date(y, m, 1), lead = first.getDay();
     var days = new Date(y, m + 1, 0).getDate();
@@ -808,14 +837,11 @@
       '<span class="lgd"><i style="background:#6E7781"></i>Committee meeting</span>' +
       '<span class="lgd"><i style="background:#8A6413"></i>Money due</span>';
 
-    return '<div class="dhead"><div><h1>Calendar</h1><p class="sub">Chapter events, committee meetings and every date money is due, on one month</p></div>' +
-      '<div class="dactions"><button class="btn ghost" data-action="cal-today">Today</button>' +
-      '<button class="btn" data-action="new-event">Create event</button></div></div>' +
-
-      '<div class="calbar"><button class="iconbtn" data-action="cal-prev" aria-label="Previous month">&lsaquo;</button>' +
+    return '<div class="calbar"><button class="iconbtn" data-action="cal-prev" aria-label="Previous month">&lsaquo;</button>' +
       '<h2>' + monthName + "</h2>" +
       '<button class="iconbtn" data-action="cal-next" aria-label="Next month">&rsaquo;</button>' +
-      '<span class="sp"></span><span class="chip neutral">' + monthCount + " on the calendar</span></div>" +
+      '<span class="sp"></span><button class="btn ghost sm" data-action="cal-today">Today</button>' +
+      '<span class="chip neutral">' + monthCount + " on the calendar</span></div>" +
 
       '<div class="calgrid">' + dows + cells + "</div>" +
       '<div class="callgd">' + legend + "</div>" +
@@ -848,8 +874,14 @@
         (isPast(e) ? '<button class="btn sm ghost" data-action="log-service" data-id="' + e.id + '">Log service hours</button>' : "") +
         "</div></div></div>";
     }
-    return '<div class="dhead"><div><h1>Events</h1><p class="sub">Tagged by program area so your annual report writes itself &middot; every event carries a chat, a QR and its own money</p></div>' +
-      '<div class="dactions"><button class="btn ghost" data-action="program-report">Program report</button><button class="btn" data-action="new-event">Create event</button></div></div>' +
+    var head = '<div class="dhead"><div><h1>Events</h1><p class="sub">Tagged by program area so your annual report writes itself &middot; every event carries a chat, a QR and its own money</p></div>' +
+      '<div class="dactions"><div class="segment" style="margin-right:4px">' +
+      '<button data-action="ev-view" data-v="cal" class="' + (state.evView !== "list" ? "on" : "") + '">Calendar</button>' +
+      '<button data-action="ev-view" data-v="list" class="' + (state.evView === "list" ? "on" : "") + '">List</button></div>' +
+      '<button class="btn ghost" data-action="program-report">Program report</button>' +
+      '<button class="btn" data-action="new-event">Create event</button></div></div>';
+    if (state.evView !== "list") return head + calendarBody();
+    return head +
       '<div class="sec"><h2>Upcoming</h2>' + upcoming().map(card).join("") + "</div>" +
       '<div class="sec"><h2>Past</h2>' + pastEvents().map(card).join("") + "</div>";
   }
@@ -1089,7 +1121,12 @@
           '<option value="">Vacant</option>' +
           actives().map(function (m) {
             return '<option value="' + m.id + '"' + (h && h.id === m.id ? " selected" : "") + ">" + esc(full(m)) + "</option>";
-          }).join("") + "</select></div>";
+          }).join("") + "</select>" +
+          '<div class="privs">' + AREAS.map(function (a) {
+            var on = (PRIV[r[0]] || []).indexOf(a[0]) > -1;
+            return '<button class="priv' + (on ? " on" : "") + '" data-action="toggle-priv" data-office="' +
+              esc(r[0]) + '" data-area="' + a[0] + '" title="' + esc(r[0] + " can reach " + a[1]) + '">' + a[1] + "</button>";
+          }).join("") + "</div></div>";
       }).join("") + "</div></div>" + chanCard + "</div><div>" + payCard +
       '<div class="card" style="margin-bottom:15px"><div class="card-h"><h3>Privacy and security</h3></div><div class="card-b">' +
       '<div class="kv"><span class="k">Chapter discovery</span><span class="v" style="color:var(--paid)">Off, invite only</span></div>' +
@@ -1135,7 +1172,7 @@
     if (state.role === "member") { el.innerHTML = viewLocked(); return; }
     if (!can(state.view)) { state.view = "home"; state.komId = null; state.attEvent = null; }
     var map = { home: viewHome, members: viewMembers, committees: viewCommittees, attendance: viewAttendance, dues: viewDues,
-      requests: viewRequests, budget: viewBudget, calendar: viewCalendar, events: viewEvents, service: viewService, minutes: viewMinutes,
+      requests: viewRequests, budget: viewBudget, events: viewEvents, service: viewService, minutes: viewMinutes,
       vault: viewVault, messages: viewMessages, settings: viewSettings };
     el.innerHTML = state.komId ? viewCommitteeDetail()
       : (state.view === "events" && state.evId) ? viewEventDetail()
@@ -1504,6 +1541,16 @@
       "Stripe requires a named human on every account for federal rules. The money belongs to the chapter and lands in the " +
       "chapter\u2019s account. When the line turns over, the next Exchequer is added and the old one is removed.</div>",
       '<button class="btn ghost" data-action="close-modal">Close</button>');
+  };
+  A["toggle-priv"] = function (el) {
+    var office = el.dataset.office, area = el.dataset.area;
+    var list = PRIV[office] = PRIV[office] || [];
+    var i = list.indexOf(area);
+    if (i > -1) list.splice(i, 1); else list.push(area);
+    var h = holderOf(office);
+    toast(office + (i > -1 ? " loses " : " gains ") + area,
+      h ? full(h) + " sees the change the moment he reloads" : office + " is vacant");
+    render();
   };
   A["chan-vis"] = function (el) {
     var c = chan(el.dataset.id); if (!c) return;
@@ -2756,6 +2803,7 @@
     closeModal(); render();
   };
 
+  A["ev-view"] = function (el) { state.evView = el.dataset.v; renderDash(); window.scrollTo(0, 0); };
   A["cal-prev"] = function () { state.calYM = ymShift(state.calYM, -1); renderDash(); };
   A["cal-next"] = function () { state.calYM = ymShift(state.calYM, 1); renderDash(); };
   A["cal-today"] = function () { state.calYM = "2026-10"; renderDash(); };
@@ -3224,7 +3272,7 @@
      rather than leave it. These are the fields that count as "where you are";
      anything else (a search box, an edit toggle) is not worth a history entry. */
   var NAV_KEYS = ["role", "view", "tab", "komId", "evId", "attEvent", "moreView",
-    "channel", "appChannel", "filter", "reqKind", "profileTab", "calYM"];
+    "channel", "appChannel", "filter", "reqKind", "profileTab", "calYM", "evView"];
   function navState() {
     var o = {};
     NAV_KEYS.forEach(function (k) { o[k] = state[k]; });
