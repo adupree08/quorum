@@ -327,9 +327,15 @@
     };
     var html = '<div class="chapcard"><div class="cname">' + esc(db.chapter.name) + "</div>" +
       '<div class="cmeta">' + esc(db.chapter.org) + "<br>" + esc(db.chapter.district) + '</div><div class="chapstripe"></div></div>';
-    NAV.forEach(function (n) {
-      if (n.g) { html += '<div class="navgroup">' + n.g + "</div>"; return; }
-      if (n.roles.indexOf(state.role) < 0) return;
+    NAV.forEach(function (n, i) {
+      if (n.g) {
+        /* do not print a group header with nothing under it */
+        var any = false;
+        for (var j = i + 1; j < NAV.length && !NAV[j].g; j++) if (can(NAV[j].id)) { any = true; break; }
+        if (any) html += '<div class="navgroup">' + n.g + "</div>";
+        return;
+      }
+      if (!can(n.id)) return;
       var c = counts[n.id];
       html += '<button class="navitem' + (state.view === n.id ? " on" : "") + '" data-action="view" data-view="' + n.id + '"><span>' + n.label + "</span>" +
         (c ? '<span class="pill">' + c + "</span>" : "") + "</button>";
